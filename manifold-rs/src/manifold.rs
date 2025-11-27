@@ -1,6 +1,6 @@
 use std::os::raw::c_void;
 
-use crate::{meshgl::MeshGL, raw};
+use crate::{BoundingBox, meshgl::MeshGL, raw};
 
 pub struct Manifold {
     pub(crate) ptr: *mut raw::ManifoldManifold,
@@ -58,6 +58,14 @@ impl Manifold {
         }
     }
 
+    /// Create a new manifold which is a rotation of this one.
+    pub fn rotate(&self, x: f64, y: f64, z: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_rotate(ptr, self.ptr, x, y, z))
+        }
+    }
+
     /// Create a new manifold by subtracting another manifold from this one.
     pub fn difference(&self, other: &Manifold) -> Self {
         unsafe {
@@ -66,9 +74,34 @@ impl Manifold {
         }
     }
 
+    /// Create a new manifold which combines two others.
+    pub fn union(&self, other: &Manifold) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_union(ptr, self.ptr, other.ptr))
+        }
+    }
+
     /// Get a [`MeshGL`] for this manifold.
     pub fn meshgl(&self) -> MeshGL {
         MeshGL::from_manifold(self)
+    }
+
+    pub fn bounding_box(&self) -> BoundingBox {
+        unsafe {
+            let bbox = BoundingBox::new();
+            raw::manifold_bounding_box(bbox.ptr as *mut c_void, self.ptr);
+            bbox
+        }
+    }
+}
+
+impl Clone for Manifold {
+    fn clone(&self) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_copy(ptr, self.ptr))
+        }
     }
 }
 
