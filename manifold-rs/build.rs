@@ -3,8 +3,16 @@ use std::path::PathBuf;
 
 fn main() {
     // TODO: abs paths
-    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/PUBLIC/bindings/c");
-    println!("cargo:rustc-link-lib=manifoldc");
+    println!("cargo:rustc-link-lib=c++");
+
+    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/manifold/bindings/c");
+    println!("cargo:rustc-link-lib=static=manifoldc");
+    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/manifold/src");
+    println!("cargo:rustc-link-lib=static=manifold");
+    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/assimp/lib");
+    println!("cargo:rustc-link-lib=static=assimp");
+    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/zlib");
+    println!("cargo:rustc-link-lib=static=z");
 
     let bindings = bindgen::Builder::default()
         .header("../vendor/manifold/bindings/c/include/manifold/manifoldc.h")
