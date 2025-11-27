@@ -1,0 +1,3 @@
+[submodule "vendor/manifold"]
+	path = vendor/manifold
+	url = https://github.com/elalish/manifold
