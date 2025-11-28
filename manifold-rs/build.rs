@@ -1,19 +1,18 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
-    // TODO: abs paths
+    // Manifold needs a libc++ to link against
     println!("cargo:rustc-link-lib=c++");
 
-    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/manifold/bindings/c");
-    println!("cargo:rustc-link-lib=static=manifoldc");
-    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/manifold/src");
-    println!("cargo:rustc-link-lib=static=manifold");
-    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/assimp/lib");
-    println!("cargo:rustc-link-lib=static=assimp");
-    println!("cargo:rustc-link-search=/Users/aaron/Source/yascad/build/vendor/zlib");
-    println!("cargo:rustc-link-lib=static=z");
+    // Build our own dependencies - configuration is in CMakeLists
+    CMakeWrapper(cmake::build(".."))
+        .static_lib_dependency("manifoldc", "build/vendor/manifold/bindings/c")
+        .static_lib_dependency("manifold",  "build/vendor/manifold/src")
+        .static_lib_dependency("assimp",    "build/vendor/assimp/lib")
+        .static_lib_dependency("z",         "build/vendor/zlib");
 
+    // Generate bindings for Manifold's C interface
     let bindings = bindgen::Builder::default()
         .header("../vendor/manifold/bindings/c/include/manifold/manifoldc.h")
         .clang_arg("-I../vendor/manifold/bindings/c/include")
@@ -21,9 +20,18 @@ fn main() {
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
-
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
+}
+
+struct CMakeWrapper(PathBuf);
+impl CMakeWrapper {
+    /// Helper to emit a static library search path and dependency from the cmake build path
+    fn static_lib_dependency(&mut self, lib: &str, relative_path: impl AsRef<Path>) -> &mut Self {
+        println!("cargo:rustc-link-search={}", self.0.join(relative_path).display());
+        println!("cargo:rustc-link-lib=static={lib}");
+        self
+    }
 }
