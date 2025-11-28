@@ -48,6 +48,14 @@ impl Interpreter {
                 Ok(Object::Number(*num))
             },
 
+            NodeKind::VectorLiteral(items) => {
+                Ok(Object::Vector(
+                    items.iter()
+                        .map(|node| self.interpret(node))
+                        .collect::<Result<Vec<_>, _>>()?
+                ))
+            }
+
             NodeKind::ModifierApplication { name, arguments, children } => {
                 // TODO: change later to render each child as a virtual manifold, which the modifier
                 //       body can copy as needed
@@ -137,22 +145,27 @@ impl Interpreter {
     }
 
     fn get_vec3_from_arguments(arguments: &[Object], span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
-        // TODO: this should take a vec2/vec3 later, but that's not implemented in the language yet.
-        //       instead, take the sizes as individual arguments
-
-        if arguments.len() != 2 && arguments.len() != 3 {
+        if arguments.len() != 1 {
             return Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectArity { expected: 2..=3, actual: arguments.len() },
+                RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
                 span,
             ));
         }
 
-        let x = arguments[0].as_number(span.clone())?;
-        let y = arguments[1].as_number(span.clone())?;
+        let vector = arguments[0].clone().into_vector(span.clone())?;
+        if vector.len() != 2 && vector.len() != 3 {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectVectorLength { expected: 2..=3, actual: vector.len() },
+                span,
+            ));
+        }
+
+        let x = vector[0].as_number(span.clone())?;
+        let y = vector[1].as_number(span.clone())?;
 
         let z =
-            if arguments.len() == 3 {
-                arguments[2].as_number(span.clone())?
+            if vector.len() == 3 {
+                vector[2].as_number(span.clone())?
             } else {
                 0.0
             };

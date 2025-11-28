@@ -10,6 +10,7 @@ pub enum Object {
     Null,
     Number(f64),
     Manifold(ManifoldTableIndex),
+    Vector(Vec<Object>),
 }
 
 impl Object {
@@ -18,6 +19,7 @@ impl Object {
             Object::Null => "null",
             Object::Number(_) => "number",
             Object::Manifold(_) => "manifold",
+            Object::Vector(_) => "vector",
         }.to_owned()
     }
 
@@ -36,6 +38,16 @@ impl Object {
             Object::Manifold(manifold) => Ok(manifold),
             _ => Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectType { expected: "manifold".to_owned(), actual: self.describe_type() },
+                span.clone())
+            ),
+        }
+    }
+
+    pub fn into_vector(self, span: InputSourceSpan) -> Result<Vec<Object>, RuntimeError> {
+        match self {
+            Object::Vector(v) => Ok(v),
+            _ => Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectType { expected: "vector".to_owned(), actual: self.describe_type() },
                 span.clone())
             ),
         }

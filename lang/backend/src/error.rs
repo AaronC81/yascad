@@ -27,6 +27,7 @@ pub enum RuntimeErrorKind {
     IncorrectType { expected: String, actual: String },
     UndefinedIdentifier(String),
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
+    IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
     MixedManifoldDisposition,
     DuplicateBinding(String),
 }
@@ -38,18 +39,26 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::UndefinedIdentifier(id) => write!(f, "undefined identifier \"{id}\""),
             RuntimeErrorKind::IncorrectArity { expected, actual } => {
                 write!(f, "incorrect number of arguments - expected ")?;
-
-                if expected.start() == expected.end() {
-                    write!(f, "{}", expected.start())?;
-                } else {
-                    write!(f, "{}-{}", expected.start(), expected.end())?;
-                }
-
+                fmt_length_range(f, expected)?;
+                write!(f, ", got {actual}")?;
+                Ok(())
+            },
+            RuntimeErrorKind::IncorrectVectorLength { expected, actual } => {
+                write!(f, "incorrect vector length - expected ")?;
+                fmt_length_range(f, expected)?;
                 write!(f, ", got {actual}")?;
                 Ok(())
             },
             RuntimeErrorKind::MixedManifoldDisposition => write!(f, "this operation tried to mix manifolds of different dispositions"),
             RuntimeErrorKind::DuplicateBinding(id) => write!(f, "binding named \"{id}\" is already defined"),
         }
+    }
+}
+
+fn fmt_length_range(f: &mut std::fmt::Formatter<'_>, range: &RangeInclusive<usize>) -> std::fmt::Result {
+    if range.start() == range.end() {
+        write!(f, "{}", range.start())
+    } else {
+        write!(f, "{}-{}", range.start(), range.end())
     }
 }

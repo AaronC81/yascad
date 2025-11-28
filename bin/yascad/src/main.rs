@@ -7,17 +7,17 @@ fn main() {
     let source = Rc::new(InputSource::new_string("
         tx = 10.0;
 
-        translate(tx, tx, tx)
+        translate([tx, tx, tx])
         {
-            cube(10, 20.5, 30);
-            cube(5, 5, 50);
+            cube([10, 20.5, 30]);
+            cube([5, 5, 50]);
         };
 
         difference() {
-            cube(5, 5, 5);
+            cube([5, 5, 5]);
 
-            cube(2, 2, 2);
-            translate(3, 3, 3) cube(2, 2, 2);
+            cube([2, 2, 2]);
+            translate([3, 3, 3]) cube([2, 2, 2]);
         };
     ".to_owned()));
 

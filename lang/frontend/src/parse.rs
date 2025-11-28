@@ -18,6 +18,7 @@ impl Node {
 pub enum NodeKind {
     Identifier(String),
     NumberLiteral(f64),
+    VectorLiteral(Vec<Node>),
 
     ModifierApplication {
         name: String,
@@ -125,7 +126,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             TokenKind::Identifier(id) => {
                 if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::LParen) {
                     // An identifier immediately followed by lparen is a call
-                    let (arguments, arguments_span) = self.parse_argument_list()?;
+                    self.tokens.next().unwrap(); // discard lparen
+                    let (arguments, arguments_span) = self.parse_bracketed_comma_separated_list(TokenKind::RParen)?;
                     let call_span = span.union_with(&[arguments_span]);
 
                     // If, after the call, there's immediately another identifier, then this call
@@ -177,6 +179,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     Some(Node::new(NodeKind::NumberLiteral(0.0), span))
                 }
             }
+            
+            TokenKind::LBracket => {
+                let (items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket)?;
+                let vector_span = span.union_with(&[end_span]);
+
+                Some(Node::new(NodeKind::VectorLiteral(items), vector_span))
+            }
 
             _ => {
                 self.errors.push(ParseError::new(
@@ -188,11 +197,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn parse_argument_list(&mut self) -> Option<(Vec<Node>, InputSourceSpan)> {
+    // Assumes you have already consumed the start of the list (e.g. left paren)
+    fn parse_bracketed_comma_separated_list(&mut self, end: TokenKind) -> Option<(Vec<Node>, InputSourceSpan)> {
         let start_span = self.tokens.peek()?.span.clone();
         let mut end_span = None;
-
-        self.expect(TokenKind::LParen)?;
 
         // Special case for empty list
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RParen) {
@@ -200,10 +208,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             return Some((vec![], start_span.union_with(&[span])));
         }
 
-        let mut arguments = vec![];
+        let mut items = vec![];
         loop {
             if let Some(arg) = self.parse_expression() {
-                arguments.push(arg);
+                items.push(arg);
             }
 
             let Some(separator) = self.tokens.next() else {
@@ -216,12 +224,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 // parse another argument.
                 //
                 // Trailing commas are allowed though, so check for rparen
-                if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RParen) {
+                if self.tokens.peek().is_some_and(|token| token.kind == end) {
                     let Token { span, .. } = self.tokens.next().unwrap();
                     end_span = Some(span);
                     break;
                 }
-            } else if separator.kind == TokenKind::RParen {
+            } else if separator.kind == end {
                 end_span = Some(separator.span);
                 break;
             } else {
@@ -229,13 +237,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
         }
 
-        let mut spans = arguments.iter()
+        let mut spans = items.iter()
             .map(|node| node.span.clone())
             .collect::<Vec<_>>();
         if let Some(end_span) = end_span {
             spans.push(end_span);
         }
-        Some((arguments, start_span.union_with(&spans)))
+        Some((items, start_span.union_with(&spans)))
     }
 
     fn parse_braced_statement_list(&mut self) -> Option<Vec<Node>> {
@@ -295,6 +303,7 @@ mod test {
 
         let mut parser = Parser::new(source.clone(), tokens);
         let stmts = parser.parse_statements();
+        assert_eq!(parser.errors, vec![]);
         assert_eq!(stmts.len(), 1);
         let stmt = &stmts[0];
 

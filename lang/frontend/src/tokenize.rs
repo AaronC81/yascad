@@ -23,6 +23,8 @@ pub enum TokenKind {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     
     Comma,
     Semicolon,
@@ -38,6 +40,8 @@ impl Display for TokenKind {
             TokenKind::RParen => write!(f, "right paren"),
             TokenKind::LBrace => write!(f, "left brace"),
             TokenKind::RBrace => write!(f, "right brace"),
+            TokenKind::LBracket => write!(f, "left bracket"),
+            TokenKind::RBracket => write!(f, "right bracket"),
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
             TokenKind::Equals => write!(f, "equals"),
@@ -135,6 +139,12 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             },
             '}' => {
                 tokens.push(Token::new(TokenKind::RBrace, source.span(start_index, 1)))
+            },
+            '[' => {
+                tokens.push(Token::new(TokenKind::LBracket, source.span(start_index, 1)))
+            },
+            ']' => {
+                tokens.push(Token::new(TokenKind::RBracket, source.span(start_index, 1)))
             },
             ',' => {
                 tokens.push(Token::new(TokenKind::Comma, source.span(start_index, 1)))
