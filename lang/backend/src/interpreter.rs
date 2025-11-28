@@ -114,6 +114,23 @@ impl Interpreter {
                 Ok(Object::Manifold(self.manifold_table.add(Manifold::cube(x, y, z, false), ManifoldDisposition::Physical)))
             }
 
+            "copy" => {
+                if arguments.len() != 1 {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
+                        span,
+                    ));
+                }
+
+                let manifold_index = arguments[0].clone().into_manifold(span)?;
+                let manifold = self.manifold_table.get(&manifold_index);
+
+                // Even if it's being copied in a virtual disposition, we can make it physical here.
+                // The `buffer` will "downgrade" it later.
+                let copied_manifold = self.manifold_table.add(manifold.clone(), ManifoldDisposition::Physical);
+                Ok(Object::Manifold(copied_manifold))
+            }
+
             _ => Err(RuntimeError::new(
                 RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
                 span,
@@ -148,6 +165,13 @@ impl Interpreter {
                 let (subtrahend, _) = self.manifold_table.remove(subtrahend);
 
                 Ok(self.manifold_table.map(minuend, |m| m.difference(&subtrahend)))
+            }
+
+            "buffer" => {
+                let manifold = self.union_modifier_children(children, span)?;
+                let (manifold, _) = self.manifold_table.remove(manifold);
+                
+                Ok(self.manifold_table.add(manifold, ManifoldDisposition::Virtual))
             }
 
             _ => Err(RuntimeError::new(

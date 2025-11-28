@@ -13,15 +13,19 @@ fn main() {
             cube([5, 5, 50]);
         };
 
-        hypercube = difference() {
-            cube([5, 5, 5]);
+        hypercube =
+            buffer()
+            difference() {
+                cube([5, 5, 5]);
 
-            cube([2, 2, 2]);
-            translate([3, 3, 3]) cube([2, 2, 2]);
-        };
+                cube([2, 2, 2]);
+                translate([3, 3, 3]) cube([2, 2, 2]);
+            };
+
+        copy(hypercube);
 
         translate([hypercube.size.x, 0, 0])
-        cube([1, 1, 1]);
+        copy(hypercube);
     ".to_owned()));
 
     let (tokens, errors) = tokenize(source.clone());
