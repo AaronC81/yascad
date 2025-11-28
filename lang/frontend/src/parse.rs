@@ -22,7 +22,10 @@ pub enum NodeKind {
     ModifierApplication {
         name: String,
         arguments: Vec<Node>,
-        target: Box<Node>,
+
+        // Note: the indexes in here might not necessarily line up with children at runtime, since
+        // only some of these might evaluate to a manifold
+        children: Vec<Node>,
     },
     Call {
         name: String,
@@ -104,6 +107,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     pub fn parse_statement(&mut self) -> Option<Node> {
         let expr = self.parse_expression()?;
+
+        // TODO: permit not needing this if we just had a closing brace
         self.expect(TokenKind::Semicolon)?;
 
         Some(expr)
@@ -122,13 +127,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
                     // If, after the call, there's immediately another identifier, then this call
                     // was actually a modifier application. We just parsed the modifier, now parse
-                    // its target.
+                    // its only child.
+                    //
+                    // Likewise, if there's a brace, we parsed a modifier with multiple children.
                     if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::Identifier(_))) {
-                        let target = self.parse_expression()?;
+                        let child = self.parse_expression()?;
                         Some(Node::new(NodeKind::ModifierApplication {
                             name: id,
                             arguments,
-                            target: Box::new(target)
+                            children: vec![child]
+                        }, call_span))
+                    } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
+                        let children = self.parse_braced_statement_list()?;
+                        Some(Node::new(NodeKind::ModifierApplication {
+                            name: id,
+                            arguments,
+                            children,
                         }, call_span))
                     } else {
                         Some(Node::new(NodeKind::Call {
@@ -203,6 +217,26 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             spans.push(end_span);
         }
         Some((arguments, start_span.union_with(&spans)))
+    }
+
+    fn parse_braced_statement_list(&mut self) -> Option<Vec<Node>> {
+        self.expect(TokenKind::LBrace)?;
+
+        let mut stmts = vec![];
+        loop {
+            if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RBrace) {
+                break
+            } else if self.tokens.peek().is_none() {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                break
+            } else {
+                if let Some(stmt) = self.parse_statement() {
+                    stmts.push(stmt);
+                }
+            }
+        }
+
+        Some(stmts)
     }
 
     /// Consume a token which is expected to be of a certain kind, generating an error if it's not.

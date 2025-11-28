@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 use manifold_rs::Manifold;
+use yascad_frontend::InputSourceSpan;
+
+use crate::{RuntimeError, RuntimeErrorKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ManifoldTableIndex(usize);
@@ -12,6 +15,21 @@ pub enum ManifoldDisposition {
 
     /// The manifold was created in a buffered environment, and does not exist in the final scene.
     Virtual,
+}
+
+impl ManifoldDisposition {
+    pub fn flatten(dispositions: &[ManifoldDisposition], span: InputSourceSpan) -> Result<ManifoldDisposition, RuntimeError> {
+        if dispositions.iter().all(|d| d == &ManifoldDisposition::Physical) {
+            Ok(ManifoldDisposition::Physical)
+        } else if dispositions.iter().all(|d| d == &ManifoldDisposition::Virtual) {
+            Ok(ManifoldDisposition::Virtual)
+        } else {
+            Err(RuntimeError::new(
+                RuntimeErrorKind::MixedManifoldDisposition,
+                span,
+            ))
+        }
+    }
 }
 
 pub struct ManifoldTable {

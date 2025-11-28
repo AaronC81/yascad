@@ -21,6 +21,9 @@ pub enum TokenKind {
 
     LParen,
     RParen,
+    LBrace,
+    RBrace,
+
     Comma,
     Semicolon,
 }
@@ -32,6 +35,8 @@ impl Display for TokenKind {
             TokenKind::Number(number) => write!(f, "number \"{number}\""),
             TokenKind::LParen => write!(f, "left paren"),
             TokenKind::RParen => write!(f, "right paren"),
+            TokenKind::LBrace => write!(f, "left brace"),
+            TokenKind::RBrace => write!(f, "right brace"),
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
         }
@@ -122,6 +127,12 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             },
             ')' => {
                 tokens.push(Token::new(TokenKind::RParen, source.span(start_index, 1)))
+            },
+            '{' => {
+                tokens.push(Token::new(TokenKind::LBrace, source.span(start_index, 1)))
+            },
+            '}' => {
+                tokens.push(Token::new(TokenKind::RBrace, source.span(start_index, 1)))
             },
             ',' => {
                 tokens.push(Token::new(TokenKind::Comma, source.span(start_index, 1)))

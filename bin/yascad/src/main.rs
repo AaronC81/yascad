@@ -6,7 +6,10 @@ use yascad_frontend::{InputSource, Parser, tokenize};
 fn main() {
     let source = Rc::new(InputSource::new_string("
         translate(20.0, 20.0, 20.0)
-        cube(10, 20.5, 30);
+        {
+            cube(10, 20.5, 30);
+            cube(5, 5, 50);
+        };
 
         cube(5, 5, 5);
     ".to_owned()));

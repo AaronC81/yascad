@@ -27,6 +27,7 @@ pub enum RuntimeErrorKind {
     IncorrectType { expected: String, actual: String },
     UndefinedIdentifier(String),
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
+    MixedManifoldDisposition,
 }
 
 impl Display for RuntimeErrorKind {
@@ -45,7 +46,8 @@ impl Display for RuntimeErrorKind {
 
                 write!(f, ", got {actual}")?;
                 Ok(())
-            }
+            },
+            RuntimeErrorKind::MixedManifoldDisposition => write!(f, "this operation tried to mix manifolds of different dispositions"),
         }
     }
 }

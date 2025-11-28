@@ -49,15 +49,21 @@ impl Interpreter {
                 Ok(Object::Number(*num))
             },
 
-            NodeKind::ModifierApplication { name, arguments, target } => {
+            NodeKind::ModifierApplication { name, arguments, children } => {
                 // TODO: change later to render each child as a virtual manifold, which the modifier
                 //       body can copy as needed
-                let target = self.interpret(target)?.into_manifold(node.span.clone())?;
+                let all_children = children.iter()
+                    .map(|child| self.interpret(child))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let manifold_children = all_children.into_iter()
+                    .filter_map(|child| child.into_manifold(node.span.clone()).ok())
+                    .collect::<Vec<_>>();
+
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg))
                     .collect::<Result<Vec<_>, _>>()?;
                 
-                let manifold = self.apply_builtin_modifier(name, &arguments, target, node.span.clone())?;
+                let manifold = self.apply_builtin_modifier(name, &arguments, manifold_children, node.span.clone())?;
                 Ok(Object::Manifold(manifold))
             }
 
@@ -84,11 +90,12 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], target: ManifoldTableIndex, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         match name {
             "translate" => {
-                let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
-                Ok(self.manifold_table.map(target, |m| m.translate(x, y, z)))
+                let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
+                let manifold = self.union_modifier_children(children, span)?;
+                Ok(self.manifold_table.map(manifold, |m| m.translate(x, y, z)))
             }
 
             _ => Err(RuntimeError::new(
@@ -120,5 +127,23 @@ impl Interpreter {
             };
 
         Ok((x, y, z))
+    }
+
+    fn union_modifier_children(&mut self, mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+        if children.len() == 1 {
+            return Ok(children.remove(0))
+        }
+
+        let (all_manifolds, all_dispositions): (Vec<_>, Vec<_>) = children.into_iter()
+            .map(|child| self.manifold_table.remove(child))
+            .unzip();
+
+        let disposition = ManifoldDisposition::flatten(&all_dispositions, span)?;
+        
+        let mut result = Manifold::new();
+        for manifold in all_manifolds {
+            result = result.union(&manifold);
+        }
+        Ok(self.manifold_table.add(result, disposition))
     }
 }
