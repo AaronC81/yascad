@@ -28,6 +28,7 @@ pub enum RuntimeErrorKind {
     UndefinedIdentifier(String),
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
     MixedManifoldDisposition,
+    DuplicateBinding(String),
 }
 
 impl Display for RuntimeErrorKind {
@@ -48,6 +49,7 @@ impl Display for RuntimeErrorKind {
                 Ok(())
             },
             RuntimeErrorKind::MixedManifoldDisposition => write!(f, "this operation tried to mix manifolds of different dispositions"),
+            RuntimeErrorKind::DuplicateBinding(id) => write!(f, "binding named \"{id}\" is already defined"),
         }
     }
 }

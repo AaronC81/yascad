@@ -3,19 +3,18 @@ use std::{collections::HashMap, rc::Rc};
 use manifold_rs::Manifold;
 use yascad_frontend::{InputSourceSpan, Node, NodeKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, lexical_scope::LexicalScope, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
 
 pub struct Interpreter {
-    // TODO: scoping
-    variables: HashMap<String, Object>, // Language is pure, don't need ability to mutate variables in-place
+    current_scope: LexicalScope,
     manifold_table: ManifoldTable,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            variables: HashMap::new(),
             manifold_table: ManifoldTable::new(),
+            current_scope: LexicalScope::new_root(),
         }
     }
 
@@ -37,7 +36,7 @@ impl Interpreter {
     pub fn interpret(&mut self, node: &Node) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
-                self.variables.get(id)
+                self.current_scope.get_binding(id)
                     .ok_or_else(|| RuntimeError::new(
                         RuntimeErrorKind::UndefinedIdentifier(id.to_owned()),
                         node.span.clone(),
@@ -73,6 +72,17 @@ impl Interpreter {
                     .collect::<Result<Vec<_>, _>>()?;
                 self.call_builtin_function(name, &arguments, node.span.clone())
             },
+            
+            NodeKind::Binding { name, value } => {
+                let value = self.interpret(&value)?;
+                if !self.current_scope.add_binding(name.to_owned(), value.clone()) {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::DuplicateBinding(name.to_owned()),
+                        node.span.clone(),
+                    ))
+                }
+                Ok(value)
+            }
         }
     }
 

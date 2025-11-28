@@ -31,6 +31,11 @@ pub enum NodeKind {
         name: String,
         arguments: Vec<Node>,
     },
+
+    Binding {
+        name: String,
+        value: Box<Node>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,8 +123,6 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let Token { kind, span } = self.tokens.next()?;
         match kind {
             TokenKind::Identifier(id) => {
-                // TODO: multi-child modifier application (e.g. `difference`)
-
                 if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::LParen) {
                     // An identifier immediately followed by lparen is a call
                     let (arguments, arguments_span) = self.parse_argument_list()?;
@@ -150,6 +153,16 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                             arguments,
                         }, call_span))
                     }
+                } else if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
+                    // Binding assignment
+                    self.tokens.next().unwrap();
+
+                    let value = self.parse_expression()?;
+                    let binding_span = span.union_with(&[value.span.clone()]);
+                    Some(Node::new(NodeKind::Binding {
+                        name: id,
+                        value: Box::new(value),
+                    }, binding_span))
                 } else {
                     // Just a normal identifier usage
                     Some(Node::new(NodeKind::Identifier(id), span))
