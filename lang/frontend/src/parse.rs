@@ -73,7 +73,7 @@ impl Display for ParseErrorKind {
 pub struct Parser<I: Iterator<Item = Token>> {
     source: Rc<InputSource>,
     tokens: Peekable<I>,
-    errors: Vec<ParseError>,
+    pub errors: Vec<ParseError>,
 }
 
 impl<I: Iterator<Item = Token>> Parser<I> {

@@ -19,6 +19,13 @@ fn main() {
     let mut parser = Parser::new(source.clone(), tokens);
     let stmts = parser.parse_statements();
 
+    if !parser.errors.is_empty() {
+        for error in parser.errors {
+            println!("{error}");
+        }
+        return;
+    }
+
     let mut interpreter = Interpreter::new();
     for stmt in stmts {
         interpreter.interpret_top_level(&stmt).unwrap();
