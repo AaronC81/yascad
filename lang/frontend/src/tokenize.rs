@@ -118,7 +118,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 let mut buffer = char.to_string();
 
                 while let Some((_, char)) = chars.peek() {
-                    if char.is_alphanumeric() {
+                    if char.is_alphanumeric() || *char == '_' {
                         let (_, char) = chars.next().unwrap();
                         buffer.push(char)
                     } else {
