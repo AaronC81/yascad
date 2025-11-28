@@ -29,6 +29,7 @@ pub enum TokenKind {
     Comma,
     Semicolon,
     Equals,
+    Dot,
 }
 
 impl Display for TokenKind {
@@ -45,6 +46,7 @@ impl Display for TokenKind {
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
             TokenKind::Equals => write!(f, "equals"),
+            TokenKind::Dot => write!(f, "dot"),
         }
     }
 }
@@ -154,6 +156,9 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             },
             '=' => {
                 tokens.push(Token::new(TokenKind::Equals, source.span(start_index, 1)))
+            },
+            '.' => {
+                tokens.push(Token::new(TokenKind::Dot, source.span(start_index, 1)))
             }
 
             _ if char.is_whitespace() => {

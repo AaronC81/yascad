@@ -13,12 +13,15 @@ fn main() {
             cube([5, 5, 50]);
         };
 
-        difference() {
+        hypercube = difference() {
             cube([5, 5, 5]);
 
             cube([2, 2, 2]);
             translate([3, 3, 3]) cube([2, 2, 2]);
         };
+
+        translate([hypercube.size.x, 0, 0])
+        cube([1, 1, 1]);
     ".to_owned()));
 
     let (tokens, errors) = tokenize(source.clone());
@@ -36,7 +39,13 @@ fn main() {
 
     let mut interpreter = Interpreter::new();
     for stmt in stmts {
-        interpreter.interpret_top_level(&stmt).unwrap();
+        match interpreter.interpret_top_level(&stmt) {
+            Ok(_) => {},
+            Err(error) => {
+                println!("{error}");
+                return;
+            }
+        }
     }
 
     interpreter

@@ -90,6 +90,19 @@ impl Interpreter {
                     ))
                 }
                 Ok(value)
+            },
+
+            NodeKind::FieldAccess { value, field } => {
+                let value = self.interpret(&value)?;
+
+                if let Some(field_value) = value.get_field(field, &self.manifold_table) {
+                    Ok(field_value)
+                } else {
+                    Err(RuntimeError::new(
+                        RuntimeErrorKind::UndefinedField { field: field.clone(), ty: value.describe_type() },
+                        node.span.clone(),
+                    ))
+                }
             }
         }
     }

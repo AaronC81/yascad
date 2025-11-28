@@ -26,6 +26,7 @@ impl Error for RuntimeError {}
 pub enum RuntimeErrorKind {
     IncorrectType { expected: String, actual: String },
     UndefinedIdentifier(String),
+    UndefinedField { ty: String, field: String },
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
     IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
     MixedManifoldDisposition,
@@ -37,6 +38,7 @@ impl Display for RuntimeErrorKind {
         match self {
             RuntimeErrorKind::IncorrectType { expected, actual } => write!(f, "type error - expected {expected}, got {actual}"),
             RuntimeErrorKind::UndefinedIdentifier(id) => write!(f, "undefined identifier \"{id}\""),
+            RuntimeErrorKind::UndefinedField { ty, field } => write!(f, "{ty} object has no field \"{field}\""),
             RuntimeErrorKind::IncorrectArity { expected, actual } => {
                 write!(f, "incorrect number of arguments - expected ")?;
                 fmt_length_range(f, expected)?;

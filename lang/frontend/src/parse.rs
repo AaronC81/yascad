@@ -37,6 +37,10 @@ pub enum NodeKind {
         name: String,
         value: Box<Node>,
     },
+    FieldAccess {
+        value: Box<Node>,
+        field: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,23 +141,27 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     // Likewise, if there's a brace, we parsed a modifier with multiple children.
                     if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::Identifier(_))) {
                         let child = self.parse_expression()?;
-                        Some(Node::new(NodeKind::ModifierApplication {
+                        return Some(Node::new(NodeKind::ModifierApplication {
                             name: id,
                             arguments,
                             children: vec![child]
                         }, call_span))
                     } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
                         let children = self.parse_braced_statement_list()?;
-                        Some(Node::new(NodeKind::ModifierApplication {
+                        return Some(Node::new(NodeKind::ModifierApplication {
                             name: id,
                             arguments,
                             children,
                         }, call_span))
                     } else {
-                        Some(Node::new(NodeKind::Call {
-                            name: id,
-                            arguments,
-                        }, call_span))
+                        Some(
+                            self.parse_any_field_access_suffixes(
+                                Node::new(NodeKind::Call {
+                                    name: id,
+                                    arguments,
+                                }, call_span)
+                            )
+                        )
                     }
                 } else if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
                     // Binding assignment
@@ -167,7 +175,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     }, binding_span))
                 } else {
                     // Just a normal identifier usage
-                    Some(Node::new(NodeKind::Identifier(id), span))
+                    Some(
+                        self.parse_any_field_access_suffixes(
+                            Node::new(NodeKind::Identifier(id), span)
+                        )
+                    )
                 }
             }
 
@@ -195,6 +207,36 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 None
             }
         }
+    }
+
+    /// If the next tokens are a field access, e.g. `.x.y`, wrap the given node in these accesses.
+    /// Otherwise, return the node unchanged.
+    fn parse_any_field_access_suffixes(&mut self, mut value: Node) -> Node {
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Dot) {
+            let Token { span: dot_span, .. } = self.tokens.next().unwrap();
+
+            let Some(Token { span: name_span, kind }) = self.tokens.next()
+            else {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                break;
+            };
+
+            let TokenKind::Identifier(name) = &kind
+            else {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), name_span));
+                break;
+            };
+
+            value = Node::new(
+                NodeKind::FieldAccess {
+                    value: Box::new(value),
+                    field: name.to_owned(),
+                },
+                dot_span.union_with(&[name_span]),
+            )
+        }
+
+        value
     }
 
     // Assumes you have already consumed the start of the list (e.g. left paren)

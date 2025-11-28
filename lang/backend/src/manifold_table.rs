@@ -55,7 +55,7 @@ impl ManifoldTable {
         self.table.remove(&index.0).expect("manifold not in table")
     }
 
-    pub fn get(&mut self, index: &ManifoldTableIndex) -> &Manifold {
+    pub fn get(&self, index: &ManifoldTableIndex) -> &Manifold {
         &self.table.get(&index.0).expect("manifold not in table").0
     }
 
