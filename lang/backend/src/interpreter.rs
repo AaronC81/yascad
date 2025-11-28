@@ -90,12 +90,33 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         match name {
             "translate" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
                 let manifold = self.union_modifier_children(children, span)?;
                 Ok(self.manifold_table.map(manifold, |m| m.translate(x, y, z)))
+            }
+
+            "union" => {
+                self.union_modifier_children(children, span)
+            }
+
+            "difference" => {
+                if children.len() == 0 {
+                    // TODO: should create an empty manifold, but don't know what disposition it should have
+                    todo!()
+                }
+            
+                let minuend = children.remove(0);
+                if children.is_empty() {
+                    return Ok(minuend);
+                }
+
+                let subtrahend = self.union_modifier_children(children, span)?;
+                let (subtrahend, _) = self.manifold_table.remove(subtrahend);
+
+                Ok(self.manifold_table.map(minuend, |m| m.difference(&subtrahend)))
             }
 
             _ => Err(RuntimeError::new(

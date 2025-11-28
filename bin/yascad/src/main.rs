@@ -11,8 +11,14 @@ fn main() {
             cube(5, 5, 50);
         };
 
-        cube(5, 5, 5);
+        difference() {
+            cube(5, 5, 5);
+
+            cube(2, 2, 2);
+            translate(3, 3, 3) cube(2, 2, 2);
+        };
     ".to_owned()));
+
     let (tokens, errors) = tokenize(source.clone());
     assert!(errors.is_empty());
 

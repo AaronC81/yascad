@@ -181,6 +181,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
         self.expect(TokenKind::LParen)?;
 
+        // Special case for empty list
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RParen) {
+            let Token { span, .. } = self.tokens.next().unwrap();
+            return Some((vec![], start_span.union_with(&[span])));
+        }
+
         let mut arguments = vec![];
         loop {
             if let Some(arg) = self.parse_expression() {
@@ -225,6 +231,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let mut stmts = vec![];
         loop {
             if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RBrace) {
+                self.tokens.next().unwrap();
                 break
             } else if self.tokens.peek().is_none() {
                 self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
