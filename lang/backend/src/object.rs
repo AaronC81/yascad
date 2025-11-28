@@ -3,13 +3,13 @@ use std::rc::Rc;
 use manifold_rs::Manifold;
 use yascad_frontend::InputSourceSpan;
 
-use crate::{RuntimeError, RuntimeErrorKind};
+use crate::{RuntimeError, RuntimeErrorKind, manifold_table::ManifoldTableIndex};
 
 #[derive(Debug, Clone)]
 pub enum Object {
     Null,
     Number(f64),
-    Manifold(Rc<Manifold>),
+    Manifold(ManifoldTableIndex),
 }
 
 impl Object {
@@ -31,9 +31,9 @@ impl Object {
         }
     }
 
-    pub fn as_manifold(&self, span: InputSourceSpan) -> Result<Rc<Manifold>, RuntimeError> {
+    pub fn into_manifold(self, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         match self {
-            Object::Manifold(manifold) => Ok(manifold.clone()),
+            Object::Manifold(manifold) => Ok(manifold),
             _ => Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectType { expected: "manifold".to_owned(), actual: self.describe_type() },
                 span.clone())

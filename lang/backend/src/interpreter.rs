@@ -3,42 +3,35 @@ use std::{collections::HashMap, rc::Rc};
 use manifold_rs::Manifold;
 use yascad_frontend::{InputSourceSpan, Node, NodeKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
 
 pub struct Interpreter {
     // TODO: scoping
     variables: HashMap<String, Object>, // Language is pure, don't need ability to mutate variables in-place
-    top_level_manifolds: Vec<Rc<Manifold>>,
+    manifold_table: ManifoldTable,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
             variables: HashMap::new(),
-            top_level_manifolds: vec![],
+            manifold_table: ManifoldTable::new(),
         }
     }
 
     pub fn build_top_level_manifold(&self) -> Manifold {
         let mut result = Manifold::new();
-        for manifold in &self.top_level_manifolds {
-            result = result.union(manifold);
+        for (manifold, disposition) in self.manifold_table.iter_manifolds() {
+            if *disposition == ManifoldDisposition::Physical {
+                result = result.union(manifold);
+            }
         }
 
         result
     }
 
-    // TODO: decide on exact semantics for this
-    //       e.g. `virtual` needs to be able to return a manifold without adding to the model, 
-    //       and assignments need to be "transparent" for their result to be correctly added here
     pub fn interpret_top_level(&mut self, node: &Node) -> Result<Object, RuntimeError> {
-        let result = self.interpret(node)?;
-
-        if let Object::Manifold(ref manifold) = result {
-            self.top_level_manifolds.push(manifold.clone());
-        }
-
-        Ok(result)
+        self.interpret(node)
     }
 
     pub fn interpret(&mut self, node: &Node) -> Result<Object, RuntimeError> {
@@ -56,15 +49,16 @@ impl Interpreter {
                 Ok(Object::Number(*num))
             },
 
-            // TODO
             NodeKind::ModifierApplication { name, arguments, target } => {
-                let target = self.interpret(target)?.as_manifold(node.span.clone())?;
+                // TODO: change later to render each child as a virtual manifold, which the modifier
+                //       body can copy as needed
+                let target = self.interpret(target)?.into_manifold(node.span.clone())?;
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg))
                     .collect::<Result<Vec<_>, _>>()?;
                 
                 let manifold = self.apply_builtin_modifier(name, &arguments, target, node.span.clone())?;
-                Ok(Object::Manifold(Rc::new(manifold)))
+                Ok(Object::Manifold(manifold))
             }
 
             NodeKind::Call { name, arguments } => {
@@ -80,7 +74,7 @@ impl Interpreter {
         match name {
             "cube" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
-                Ok(Object::Manifold(Rc::new(Manifold::cube(x, y, z, false))))
+                Ok(Object::Manifold(self.manifold_table.add(Manifold::cube(x, y, z, false), ManifoldDisposition::Physical)))
             }
 
             _ => Err(RuntimeError::new(
@@ -90,11 +84,11 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], target: Rc<Manifold>, span: InputSourceSpan) -> Result<Manifold, RuntimeError> {
+    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], target: ManifoldTableIndex, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         match name {
             "translate" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
-                Ok(target.translate(x, y, z))
+                Ok(self.manifold_table.map(target, |m| m.translate(x, y, z)))
             }
 
             _ => Err(RuntimeError::new(
