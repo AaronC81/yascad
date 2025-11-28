@@ -20,7 +20,8 @@ pub enum NodeKind {
     NumberLiteral(f64),
 
     ModifierApplication {
-        modifier: Box<Node>,
+        name: String,
+        arguments: Vec<Node>,
         target: Box<Node>,
     },
     Call {
@@ -112,17 +113,29 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let Token { kind, span } = self.tokens.next()?;
         match kind {
             TokenKind::Identifier(id) => {
-                // TODO: modifier application
-                
+                // TODO: multi-child modifier application (e.g. `difference`)
+
                 if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::LParen) {
                     // An identifier immediately followed by lparen is a call
                     let (arguments, arguments_span) = self.parse_argument_list()?;
-                    println!("{arguments_span:?}");
                     let call_span = span.union_with(&[arguments_span]);
-                    Some(Node::new(NodeKind::Call {
-                        name: id,
-                        arguments,
-                    }, call_span))
+
+                    // If, after the call, there's immediately another identifier, then this call
+                    // was actually a modifier application. We just parsed the modifier, now parse
+                    // its target.
+                    if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::Identifier(_))) {
+                        let target = self.parse_expression()?;
+                        Some(Node::new(NodeKind::ModifierApplication {
+                            name: id,
+                            arguments,
+                            target: Box::new(target)
+                        }, call_span))
+                    } else {
+                        Some(Node::new(NodeKind::Call {
+                            name: id,
+                            arguments,
+                        }, call_span))
+                    }
                 } else {
                     // Just a normal identifier usage
                     Some(Node::new(NodeKind::Identifier(id), span))

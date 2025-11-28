@@ -254,5 +254,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
 
 [[package]]
+name = "yascad"
+version = "0.1.0"
+dependencies = [
+ "yascad-backend",
+ "yascad-frontend",
+]
+
+[[package]]
+name = "yascad-backend"
+version = "0.1.0"
+dependencies = [
+ "manifold-rs",
+ "yascad-frontend",
+]
+
+[[package]]
 name = "yascad-frontend"
 version = "0.1.0"

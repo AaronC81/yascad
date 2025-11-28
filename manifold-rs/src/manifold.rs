@@ -1,4 +1,4 @@
-use std::os::raw::c_void;
+use std::{fmt::Debug, os::raw::c_void};
 
 use crate::{BoundingBox, meshgl::MeshGL, raw};
 
@@ -94,6 +94,12 @@ impl Manifold {
             bbox
         }
     }
+
+    pub fn count_verts(&self) -> usize {
+        unsafe {
+            raw::manifold_num_vert(self.ptr)
+        }
+    }
 }
 
 impl Clone for Manifold {
@@ -110,5 +116,11 @@ impl Drop for Manifold {
         unsafe {
             raw::manifold_delete_manifold(self.ptr);
         }
+    }
+}
+
+impl Debug for Manifold {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Manifold {{ {} verts }}", self.count_verts())
     }
 }
