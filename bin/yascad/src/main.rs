@@ -4,29 +4,7 @@ use yascad_backend::Interpreter;
 use yascad_frontend::{InputSource, Parser, tokenize};
 
 fn main() {
-    let source = Rc::new(InputSource::new_string("
-        tx = 10.0;
-
-        translate([tx, tx, tx])
-        {
-            cube([10, 20.5, 30]);
-            cube([5, 5, 50]);
-        };
-
-        hypercube =
-            buffer()
-            difference() {
-                cube([5, 5, 5]);
-
-                cube([2, 2, 2]);
-                translate([3, 3, 3]) cube([2, 2, 2]);
-            };
-
-        copy(hypercube);
-
-        translate([hypercube.size.x, 0, 0])
-        copy(hypercube);
-    ".to_owned()));
+    let source = Rc::new(InputSource::new_file("model.yascad").unwrap());
 
     let (tokens, errors) = tokenize(source.clone());
     assert!(errors.is_empty());

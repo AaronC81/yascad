@@ -1,4 +1,4 @@
-use std::{path::{Path, PathBuf}, rc::Rc};
+use std::{io, path::{Path, PathBuf}, rc::Rc};
 
 mod tokenize;
 pub use tokenize::*;
@@ -19,6 +19,15 @@ impl InputSource {
             origin: InputSourceOrigin::new_string(),
         }
     }
+
+    pub fn new_file(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+        let path_buf = path.as_ref().to_owned();
+        let content = std::fs::read_to_string(path)?;
+        Ok(Self {
+            content,
+            origin: InputSourceOrigin::File(path_buf),
+        })
+    } 
 
     pub fn span(self: &Rc<Self>, start: usize, length: usize) -> InputSourceSpan {
         InputSourceSpan::new(self.clone(), start, length)
