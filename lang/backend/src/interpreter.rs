@@ -5,6 +5,43 @@ use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
 use crate::{RuntimeError, RuntimeErrorKind, lexical_scope::LexicalScope, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
 
+/// The context of whatever node is currently executing, to encapsulate surrounding state.
+#[derive(Clone)]
+pub struct ExecutionContext<'c> {
+    /// The manifold (if any) which `it` currently refers to.
+    it_manifold: ItManifold<'c>,
+
+    /// If executing an operator body, its `children`.
+    operator_children: Option<&'c [ManifoldTableIndex]>,
+}
+
+impl<'c> ExecutionContext<'c> {
+    pub fn new() -> Self {
+        Self {
+            it_manifold: ItManifold::None,
+            operator_children: None,
+        }
+    }
+
+    pub fn with_it_manifold<'r>(&self, it_manifold: ItManifold<'r>) -> ExecutionContext<'r>
+    where 'c: 'r
+    {
+        ExecutionContext {
+            it_manifold,
+            ..self.clone()
+        }
+    }
+
+    pub fn with_operator_children<'r>(&self, operator_children: Option<&'r [ManifoldTableIndex]>) -> ExecutionContext<'r>
+    where 'c: 'r
+    {
+        ExecutionContext {
+            operator_children,
+            ..self.clone()
+        }
+    }
+}
+
 pub struct Interpreter {
     current_scope: LexicalScope,
     manifold_table: ManifoldTable,
@@ -35,11 +72,11 @@ impl Interpreter {
     }
 
     pub fn interpret_top_level(&mut self, node: &Node) -> Result<Object, RuntimeError> {
-        self.interpret(node, ItManifold::None, None)
+        self.interpret(node, &ExecutionContext::new())
     }
 
     // TODO: break out these parameters into some kind of `InterpreterState`
-    pub fn interpret(&mut self, node: &Node, it_manifold: ItManifold, operator_children: Option<&[ManifoldTableIndex]>) -> Result<Object, RuntimeError> {
+    pub fn interpret(&mut self, node: &Node, ctx: &ExecutionContext) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
                 self.current_scope.get_binding(id)
@@ -57,13 +94,13 @@ impl Interpreter {
             NodeKind::VectorLiteral(items) => {
                 Ok(Object::Vector(
                     items.iter()
-                        .map(|node| self.interpret(node, it_manifold, operator_children))
+                        .map(|node| self.interpret(node, ctx))
                         .collect::<Result<Vec<_>, _>>()?
                 ))
             },
 
             NodeKind::ItReference => {
-                match it_manifold {
+                match ctx.it_manifold {
                     ItManifold::Some(manifold_table_index) => {
                         Ok(Object::Manifold(manifold_table_index.clone()))
                     },
@@ -84,7 +121,7 @@ impl Interpreter {
 
             NodeKind::OperatorApplication { name, arguments, children } => {
                 let all_children = children.iter()
-                    .map(|child| self.interpret(child, ItManifold::None, operator_children))
+                    .map(|child| self.interpret(child, &ctx.with_it_manifold(ItManifold::None)))
                     .collect::<Result<Vec<_>, _>>()?;
                 let manifold_children = Self::filter_objects_to_manifolds(all_children);
 
@@ -96,7 +133,7 @@ impl Interpreter {
                     };
 
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, it_manifold, operator_children))
+                    .map(|arg| self.interpret(arg, &ctx.with_it_manifold(it_manifold)))
                     .collect::<Result<Vec<_>, _>>()?;
                 
                 // We handle user-defined operators and built-in operators differently.
@@ -124,7 +161,9 @@ impl Interpreter {
                         .collect::<Vec<_>>();
 
                     let result_manifolds = Self::filter_objects_to_manifolds(
-                        self.interpret_body(body, ItManifold::None, Some(&temporary_virtual_manifolds))?
+                        self.interpret_body(body, &ctx
+                            .with_it_manifold(ItManifold::None)
+                            .with_operator_children(Some(&temporary_virtual_manifolds)))?
                     );
                     let result_manifold = self.union_manifolds(result_manifolds, node.span.clone())?;
 
@@ -141,13 +180,13 @@ impl Interpreter {
 
             NodeKind::Call { name, arguments } => {
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, it_manifold, operator_children))
+                    .map(|arg| self.interpret(arg, ctx))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.call_builtin_function(name, &arguments, operator_children, node.span.clone())
+                self.call_builtin_function(name, &arguments, ctx.operator_children, node.span.clone())
             },
             
             NodeKind::Binding { name, value } => {
-                let value = self.interpret(&value, it_manifold, operator_children)?;
+                let value = self.interpret(&value, ctx)?;
                 if !self.current_scope.add_binding(name.to_owned(), value.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),
@@ -158,7 +197,7 @@ impl Interpreter {
             },
 
             NodeKind::FieldAccess { value, field } => {
-                let value = self.interpret(&value, it_manifold, operator_children)?;
+                let value = self.interpret(&value, ctx)?;
 
                 if let Some(field_value) = value.get_field(field, &self.manifold_table) {
                     Ok(field_value)
@@ -171,8 +210,8 @@ impl Interpreter {
             },
 
             NodeKind::BinaryOperation { left, right, op } => {
-                let left = self.interpret(&left, it_manifold, operator_children)?.as_number(node.span.clone())?;
-                let right = self.interpret(&right, it_manifold, operator_children)?.as_number(node.span.clone())?;
+                let left = self.interpret(&left, ctx)?.as_number(node.span.clone())?;
+                let right = self.interpret(&right, ctx)?.as_number(node.span.clone())?;
 
                 let result = match op {
                     BinaryOperator::Add => left + right,
@@ -185,7 +224,7 @@ impl Interpreter {
             },
 
             NodeKind::UnaryNegate(value) => {
-                let value = self.interpret(&value, it_manifold, operator_children)?.as_number(node.span.clone())?;
+                let value = self.interpret(&value, ctx)?.as_number(node.span.clone())?;
                 Ok(Object::Number(-value))
             },
 
@@ -201,9 +240,9 @@ impl Interpreter {
         }
     }
 
-    fn interpret_body(&mut self, nodes: &[Node], it_manifold: ItManifold, operator_children: Option<&[ManifoldTableIndex]>) -> Result<Vec<Object>, RuntimeError> {
+    fn interpret_body(&mut self, nodes: &[Node], ctx: &ExecutionContext) -> Result<Vec<Object>, RuntimeError> {
         nodes.iter()
-            .map(|node| self.interpret(node, it_manifold, operator_children))
+            .map(|node| self.interpret(node, ctx))
             .collect()
     }
 
