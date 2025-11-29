@@ -1,13 +1,14 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use yascad_frontend::{Node, NodeKind};
 
 use crate::{RuntimeError, RuntimeErrorKind, object::Object};
 
+#[derive(Debug)]
 pub struct LexicalScope {
     bindings: HashMap<String, Object>,
     operators: HashMap<String, Node>, // Always `Node::OperatorDefinition`
-    pub parent: Option<Rc<LexicalScope>>,
+    pub parent: Option<Rc<RefCell<LexicalScope>>>,
 }
 
 impl LexicalScope {
@@ -19,7 +20,7 @@ impl LexicalScope {
         }
     }
 
-    pub fn new(parent: Rc<LexicalScope>) -> Self {
+    pub fn new(parent: Rc<RefCell<LexicalScope>>) -> Self {
         Self {
             bindings: HashMap::new(),
             operators: HashMap::new(),
@@ -27,13 +28,13 @@ impl LexicalScope {
         }
     }
 
-    pub fn get_binding(&self, name: &str) -> Option<&Object> {
+    pub fn get_binding(&self, name: &str) -> Option<Object> {
         if let Some(object) = self.bindings.get(name) {
-            return Some(object);
+            return Some(object.clone());
         }
 
         if let Some(parent) = self.parent.as_ref() {
-            parent.get_binding(name)
+            parent.borrow().get_binding(name)
         } else {
             None
         }
@@ -49,13 +50,13 @@ impl LexicalScope {
         true
     }
 
-    pub fn get_operator(&self, name: &str) -> Option<&Node> {
-        if let Some(object) = self.operators.get(name) {
-            return Some(object);
+    pub fn get_operator(&self, name: &str) -> Option<Node> {
+        if let Some(node) = self.operators.get(name) {
+            return Some(node.clone());
         }
 
         if let Some(parent) = self.parent.as_ref() {
-            parent.get_operator(name)
+            parent.borrow().get_operator(name)
         } else {
             None
         }

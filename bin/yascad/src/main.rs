@@ -34,13 +34,11 @@ fn main() {
     }
 
     let mut interpreter = Interpreter::new();
-    for stmt in stmts {
-        match interpreter.interpret_top_level(&stmt) {
-            Ok(_) => {},
-            Err(error) => {
-                println!("{error}");
-                return;
-            }
+    match interpreter.interpret_top_level(&stmts) {
+        Ok(_) => {},
+        Err(error) => {
+            println!("{error}");
+            return;
         }
     }
 

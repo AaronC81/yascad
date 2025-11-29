@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use manifold_rs::Manifold;
 use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
@@ -6,13 +6,16 @@ use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 use crate::{RuntimeError, RuntimeErrorKind, lexical_scope::LexicalScope, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ExecutionContext<'c> {
     /// The manifold (if any) which `it` currently refers to.
     it_manifold: ItManifold<'c>,
 
     /// If executing an operator body, its `children`.
     operator_children: Option<&'c [ManifoldTableIndex]>,
+
+    /// The current lexical scope.
+    lexical_scope: Rc<RefCell<LexicalScope>>,
 }
 
 impl<'c> ExecutionContext<'c> {
@@ -20,6 +23,7 @@ impl<'c> ExecutionContext<'c> {
         Self {
             it_manifold: ItManifold::None,
             operator_children: None,
+            lexical_scope: Rc::new(RefCell::new(LexicalScope::new_root())),
         }
     }
 
@@ -40,12 +44,17 @@ impl<'c> ExecutionContext<'c> {
             ..self.clone()
         }
     }
+
+    pub fn with_deeper_scope(&'_ self) -> ExecutionContext<'_> {
+        ExecutionContext {
+            lexical_scope: Rc::new(RefCell::new(LexicalScope::new(self.lexical_scope.clone()))),
+            ..self.clone()
+        }
+    }
 }
 
 pub struct Interpreter {
-    current_scope: LexicalScope,
     manifold_table: ManifoldTable,
-
     circle_segments: i32,
 }
 
@@ -53,7 +62,6 @@ impl Interpreter {
     pub fn new() -> Self {
         Self {
             manifold_table: ManifoldTable::new(),
-            current_scope: LexicalScope::new_root(),
 
             // TODO: add $fn setter support
             circle_segments: 20,
@@ -71,20 +79,24 @@ impl Interpreter {
         result
     }
 
-    pub fn interpret_top_level(&mut self, node: &Node) -> Result<Object, RuntimeError> {
-        self.interpret(node, &ExecutionContext::new())
+    pub fn interpret_top_level(&mut self, nodes: &[Node]) -> Result<(), RuntimeError> {
+        let ctx = ExecutionContext::new();
+        for node in nodes {
+            self.interpret(node, &ctx)?;
+        }
+        Ok(())
     }
 
     // TODO: break out these parameters into some kind of `InterpreterState`
     pub fn interpret(&mut self, node: &Node, ctx: &ExecutionContext) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
-                self.current_scope.get_binding(id)
+                ctx.lexical_scope.borrow()
+                    .get_binding(id)
                     .ok_or_else(|| RuntimeError::new(
                         RuntimeErrorKind::UndefinedIdentifier(id.to_owned()),
                         node.span.clone(),
                     ))
-                    .cloned()
             },
 
             NodeKind::NumberLiteral(num) => {
@@ -147,9 +159,7 @@ impl Interpreter {
                 // Built-in operators can do their own manifold table manipulation, so these are
                 // directly given the physical manifold indexes. They can do whatever they like with
                 // them.
-                //
-                // TODO: operator should execute in a new lexical scope
-                if let Some(user_operator) = self.current_scope.get_operator(name) {
+                if let Some(user_operator) = ctx.lexical_scope.borrow().get_operator(name) {
                     let NodeKind::OperatorDefinition { body, name: _ } = &user_operator.kind.clone()
                     else { unreachable!() };
 
@@ -163,7 +173,8 @@ impl Interpreter {
                     let result_manifolds = Self::filter_objects_to_manifolds(
                         self.interpret_body(body, &ctx
                             .with_it_manifold(ItManifold::None)
-                            .with_operator_children(Some(&temporary_virtual_manifolds)))?
+                            .with_operator_children(Some(&temporary_virtual_manifolds))
+                            .with_deeper_scope())?
                     );
                     let result_manifold = self.union_manifolds(result_manifolds, node.span.clone())?;
 
@@ -187,7 +198,7 @@ impl Interpreter {
             
             NodeKind::Binding { name, value } => {
                 let value = self.interpret(&value, ctx)?;
-                if !self.current_scope.add_binding(name.to_owned(), value.clone()) {
+                if !ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), value.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),
                         node.span.clone(),
@@ -229,7 +240,7 @@ impl Interpreter {
             },
 
             NodeKind::OperatorDefinition { name, body: _ } => {
-                if !self.current_scope.add_operator(name.to_owned(), node.clone()) {
+                if !ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), node.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),
                         node.span.clone(),
@@ -416,7 +427,7 @@ impl Interpreter {
 }
 
 /// Describes the manifold which will be referenced by `it`.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ItManifold<'a> {
     /// `it` is valid and references a manifold.
     Some(&'a ManifoldTableIndex),
