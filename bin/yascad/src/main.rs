@@ -1,10 +1,24 @@
-use std::rc::Rc;
+use std::{path::PathBuf, rc::Rc};
 
+use clap::Parser as ClapParser;
 use yascad_backend::Interpreter;
 use yascad_frontend::{InputSource, Parser, tokenize};
 
+#[derive(ClapParser, Debug)]
+struct Args {
+    /// Path to the input file
+    #[arg(short)]
+    input: PathBuf,
+
+    /// Path to the output file
+    #[arg(short)]
+    output: PathBuf,
+}
+
 fn main() {
-    let source = Rc::new(InputSource::new_file("model.yascad").unwrap());
+    let args = Args::parse();
+
+    let source = Rc::new(InputSource::new_file(args.input).unwrap());
 
     let (tokens, errors) = tokenize(source.clone());
     assert!(errors.is_empty());
@@ -33,5 +47,5 @@ fn main() {
     interpreter
         .build_top_level_manifold()
         .meshgl()
-        .export("out.stl");
+        .export(args.output);
 }
