@@ -22,6 +22,7 @@ pub enum TokenKind {
     Number(String),
 
     KwIt,
+    KwOperator,
 
     LParen,
     RParen,
@@ -54,6 +55,7 @@ impl Display for TokenKind {
             TokenKind::RBracket => write!(f, "right bracket"),
 
             TokenKind::KwIt => write!(f, "keyword \"it\""),
+            TokenKind::KwOperator => write!(f, "keyword \"operator\""),
 
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
@@ -230,6 +232,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
 fn lookup_keyword(name: &str) -> Option<TokenKind> {
     match name {
         "it" => Some(TokenKind::KwIt),
+        "operator" => Some(TokenKind::KwOperator),
         _ => None,
     }
 }

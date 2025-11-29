@@ -51,6 +51,12 @@ pub enum NodeKind {
         op: BinaryOperator,
     },
     UnaryNegate(Box<Node>),
+
+    OperatorDefinition {
+        name: String,
+        // TODO: parameters
+        body: Vec<Node>,
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -146,6 +152,43 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     // If they return `None`, then they (or a subparser) already emitted an error.
 
     pub fn parse_statement(&mut self) -> Option<Node> {
+        // Try parse operator definition
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwOperator) {
+            let Token { span: start_span, .. } = self.tokens.next().unwrap();
+            
+            let Some(name_token) = self.tokens.next()
+            else {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                return None;
+            };
+
+            let TokenKind::Identifier(name) = &name_token.kind
+            else {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(name_token.kind), name_token.span));
+                return None;
+            };
+
+            self.expect(TokenKind::LParen)?;
+            // TODO: parameters
+            self.expect(TokenKind::RParen)?;
+
+            let body = self.parse_braced_statement_list()?;
+
+            let body_spans = body
+                .iter()
+                .map(|item| item.span.clone())
+                .collect::<Vec<_>>();
+            let span = start_span.union_with(&body_spans);
+
+            return Some(Node::new(
+                NodeKind::OperatorDefinition {
+                    name: name.to_owned(),
+                    body,
+                },
+                span,
+            ))
+        }
+
         let (mut expr, mut terminator) = self.parse_expression()?;
 
         // Parse assignment

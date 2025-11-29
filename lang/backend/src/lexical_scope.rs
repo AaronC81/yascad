@@ -1,9 +1,12 @@
 use std::{collections::HashMap, rc::Rc};
 
+use yascad_frontend::{Node, NodeKind};
+
 use crate::{RuntimeError, RuntimeErrorKind, object::Object};
 
 pub struct LexicalScope {
     bindings: HashMap<String, Object>,
+    operators: HashMap<String, Node>, // Always `Node::OperatorDefinition`
     pub parent: Option<Rc<LexicalScope>>,
 }
 
@@ -11,6 +14,7 @@ impl LexicalScope {
     pub fn new_root() -> Self {
         Self {
             bindings: HashMap::new(),
+            operators: HashMap::new(),
             parent: None,
         }
     }
@@ -18,6 +22,7 @@ impl LexicalScope {
     pub fn new(parent: Rc<LexicalScope>) -> Self {
         Self {
             bindings: HashMap::new(),
+            operators: HashMap::new(),
             parent: Some(parent),
         }
     }
@@ -41,6 +46,32 @@ impl LexicalScope {
         }
 
         self.bindings.insert(name, value);
+        true
+    }
+
+    pub fn get_operator(&self, name: &str) -> Option<&Node> {
+        if let Some(object) = self.operators.get(name) {
+            return Some(object);
+        }
+
+        if let Some(parent) = self.parent.as_ref() {
+            parent.get_operator(name)
+        } else {
+            None
+        }
+    }
+
+    #[must_use = "return value indicates whether an operator was created successfully"]
+    pub fn add_operator(&mut self, name: String, definition: Node) -> bool {
+        if !matches!(definition.kind, NodeKind::OperatorDefinition { .. }) {
+            panic!("lexical scope operators must have NodeKind::OperatorDefinition")
+        }
+
+        if self.get_operator(&name).is_some() {
+            return false
+        }
+
+        self.operators.insert(name, definition);
         true
     }
 }

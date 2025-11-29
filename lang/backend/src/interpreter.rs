@@ -35,10 +35,11 @@ impl Interpreter {
     }
 
     pub fn interpret_top_level(&mut self, node: &Node) -> Result<Object, RuntimeError> {
-        self.interpret(node, ItManifold::None)
+        self.interpret(node, ItManifold::None, None)
     }
 
-    pub fn interpret(&mut self, node: &Node, it_manifold: ItManifold) -> Result<Object, RuntimeError> {
+    // TODO: break out these parameters into some kind of `InterpreterState`
+    pub fn interpret(&mut self, node: &Node, it_manifold: ItManifold, operator_children: Option<&[ManifoldTableIndex]>) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
                 self.current_scope.get_binding(id)
@@ -56,7 +57,7 @@ impl Interpreter {
             NodeKind::VectorLiteral(items) => {
                 Ok(Object::Vector(
                     items.iter()
-                        .map(|node| self.interpret(node, it_manifold))
+                        .map(|node| self.interpret(node, it_manifold, operator_children))
                         .collect::<Result<Vec<_>, _>>()?
                 ))
             },
@@ -82,14 +83,10 @@ impl Interpreter {
             },
 
             NodeKind::OperatorApplication { name, arguments, children } => {
-                // TODO: change later to render each child as a virtual manifold, which the operator
-                //       body can copy as needed
                 let all_children = children.iter()
-                    .map(|child| self.interpret(child, ItManifold::None))
+                    .map(|child| self.interpret(child, ItManifold::None, operator_children))
                     .collect::<Result<Vec<_>, _>>()?;
-                let manifold_children = all_children.into_iter()
-                    .filter_map(|child| child.into_manifold(node.span.clone()).ok())
-                    .collect::<Vec<_>>();
+                let manifold_children = Self::filter_objects_to_manifolds(all_children);
 
                 let it_manifold =
                     if manifold_children.len() == 1 {
@@ -99,22 +96,58 @@ impl Interpreter {
                     };
 
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, it_manifold))
+                    .map(|arg| self.interpret(arg, it_manifold, operator_children))
                     .collect::<Result<Vec<_>, _>>()?;
                 
-                let manifold = self.apply_builtin_operator(name, &arguments, manifold_children, node.span.clone())?;
-                Ok(Object::Manifold(manifold))
+                // We handle user-defined operators and built-in operators differently.
+                //
+                // User-defined operators can use `children` to access a new copy of the children.
+                // To implement this, we create virtual manifolds with all of the children
+                // rendered already. The user code never gets access to these manifolds - only
+                // copies of it - and these virtual manifolds are destroyed afterwards.
+                // (See the implementation for the `children` built-in function.)
+                //
+                // Built-in operators can do their own manifold table manipulation, so these are
+                // directly given the physical manifold indexes. They can do whatever they like with
+                // them.
+                //
+                // TODO: operator should execute in a new lexical scope
+                if let Some(user_operator) = self.current_scope.get_operator(name) {
+                    let NodeKind::OperatorDefinition { body, name: _ } = &user_operator.kind.clone()
+                    else { unreachable!() };
+
+                    let temporary_virtual_manifolds = manifold_children.into_iter()
+                        .map(|index| {
+                            let (m, _) = self.manifold_table.remove(index);
+                            self.manifold_table.add(m, ManifoldDisposition::Virtual)
+                        })
+                        .collect::<Vec<_>>();
+
+                    let result_manifolds = Self::filter_objects_to_manifolds(
+                        self.interpret_body(body, ItManifold::None, Some(&temporary_virtual_manifolds))?
+                    );
+                    let result_manifold = self.union_manifolds(result_manifolds, node.span.clone())?;
+
+                    for index in temporary_virtual_manifolds {
+                        self.manifold_table.remove(index);
+                    }
+
+                    Ok(Object::Manifold(result_manifold))
+                } else {
+                    let manifold = self.apply_builtin_operator(name, &arguments, manifold_children, node.span.clone())?;
+                    Ok(Object::Manifold(manifold))
+                }
             }
 
             NodeKind::Call { name, arguments } => {
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, it_manifold))
+                    .map(|arg| self.interpret(arg, it_manifold, operator_children))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.call_builtin_function(name, &arguments, node.span.clone())
+                self.call_builtin_function(name, &arguments, operator_children, node.span.clone())
             },
             
             NodeKind::Binding { name, value } => {
-                let value = self.interpret(&value, it_manifold)?;
+                let value = self.interpret(&value, it_manifold, operator_children)?;
                 if !self.current_scope.add_binding(name.to_owned(), value.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),
@@ -125,7 +158,7 @@ impl Interpreter {
             },
 
             NodeKind::FieldAccess { value, field } => {
-                let value = self.interpret(&value, it_manifold)?;
+                let value = self.interpret(&value, it_manifold, operator_children)?;
 
                 if let Some(field_value) = value.get_field(field, &self.manifold_table) {
                     Ok(field_value)
@@ -138,8 +171,8 @@ impl Interpreter {
             },
 
             NodeKind::BinaryOperation { left, right, op } => {
-                let left = self.interpret(&left, it_manifold)?.as_number(node.span.clone())?;
-                let right = self.interpret(&right, it_manifold)?.as_number(node.span.clone())?;
+                let left = self.interpret(&left, it_manifold, operator_children)?.as_number(node.span.clone())?;
+                let right = self.interpret(&right, it_manifold, operator_children)?.as_number(node.span.clone())?;
 
                 let result = match op {
                     BinaryOperator::Add => left + right,
@@ -152,13 +185,29 @@ impl Interpreter {
             },
 
             NodeKind::UnaryNegate(value) => {
-                let value = self.interpret(&value, it_manifold)?.as_number(node.span.clone())?;
+                let value = self.interpret(&value, it_manifold, operator_children)?.as_number(node.span.clone())?;
                 Ok(Object::Number(-value))
-            }
+            },
+
+            NodeKind::OperatorDefinition { name, body: _ } => {
+                if !self.current_scope.add_operator(name.to_owned(), node.clone()) {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::DuplicateBinding(name.to_owned()),
+                        node.span.clone(),
+                    ))
+                }
+                Ok(Object::Null)
+            },
         }
     }
 
-    fn call_builtin_function(&mut self, name: &str, arguments: &[Object], span: InputSourceSpan) -> Result<Object, RuntimeError> {
+    fn interpret_body(&mut self, nodes: &[Node], it_manifold: ItManifold, operator_children: Option<&[ManifoldTableIndex]>) -> Result<Vec<Object>, RuntimeError> {
+        nodes.iter()
+            .map(|node| self.interpret(node, it_manifold, operator_children))
+            .collect()
+    }
+
+    fn call_builtin_function(&mut self, name: &str, arguments: &[Object], operator_children: Option<&[ManifoldTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
         match name {
             "cube" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
@@ -197,6 +246,25 @@ impl Interpreter {
                 Ok(Object::Manifold(copied_manifold))
             }
 
+            // TODO: specific children selectors
+            "children" => {
+                let Some(children) = operator_children
+                else {
+                    return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
+                };
+
+                // The children are temporary virtual manifolds.
+                // Copy them as physical and then build a union of all of the copies.
+                let copied_children = children.iter()
+                    .map(|child| {
+                        let m = self.manifold_table.get(child).clone();
+                        self.manifold_table.add(m, ManifoldDisposition::Physical)
+                    })
+                    .collect::<Vec<_>>();
+
+                Ok(Object::Manifold(self.union_manifolds(copied_children, span)?))
+            }
+
             _ => Err(RuntimeError::new(
                 RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
                 span,
@@ -208,12 +276,12 @@ impl Interpreter {
         match name {
             "translate" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
-                let manifold = self.union_operator_children(children, span)?;
+                let manifold = self.union_manifolds(children, span)?;
                 Ok(self.manifold_table.map(manifold, |m| m.translate(x, y, z)))
             }
 
             "union" => {
-                self.union_operator_children(children, span)
+                self.union_manifolds(children, span)
             }
 
             "difference" => {
@@ -227,14 +295,14 @@ impl Interpreter {
                     return Ok(minuend);
                 }
 
-                let subtrahend = self.union_operator_children(children, span)?;
+                let subtrahend = self.union_manifolds(children, span)?;
                 let (subtrahend, _) = self.manifold_table.remove(subtrahend);
 
                 Ok(self.manifold_table.map(minuend, |m| m.difference(&subtrahend)))
             }
 
             "buffer" => {
-                let manifold = self.union_operator_children(children, span)?;
+                let manifold = self.union_manifolds(children, span)?;
                 let (manifold, _) = self.manifold_table.remove(manifold);
                 
                 Ok(self.manifold_table.add(manifold, ManifoldDisposition::Virtual))
@@ -276,7 +344,7 @@ impl Interpreter {
         Ok((x, y, z))
     }
 
-    fn union_operator_children(&mut self, mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn union_manifolds(&mut self, mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         if children.len() == 1 {
             return Ok(children.remove(0))
         }
@@ -292,6 +360,19 @@ impl Interpreter {
             result = result.union(&manifold);
         }
         Ok(self.manifold_table.add(result, disposition))
+    }
+
+    /// Given a list of objects, filter it down to only the manifolds, and return them.
+    fn filter_objects_to_manifolds(objects: Vec<Object>) -> Vec<ManifoldTableIndex> {
+        objects.into_iter()
+            .filter_map(|child|
+                if let Object::Manifold(index) = child {
+                    Some(index)
+                } else {
+                    None
+                }
+            )
+            .collect()
     }
 }
 
