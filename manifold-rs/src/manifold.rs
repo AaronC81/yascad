@@ -50,6 +50,19 @@ impl Manifold {
         }
     }
 
+    /// Create a new manifold of a cylinder.
+    pub fn cylinder(radius: f64, height: f64, segments: i32, centre: bool) -> Self {
+        Self::cone(radius, radius, height, segments, centre)
+    }
+
+    /// Create a new manifold of a cone.
+    pub fn cone(radius_low: f64, radius_high: f64, height: f64, segments: i32, centre: bool) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_cylinder(ptr, height, radius_low, radius_high, segments, if centre { 1 } else { 0 }))
+        }
+    }
+
     /// Create a new manifold which is a translation of this one.
     pub fn translate(&self, x: f64, y: f64, z: f64) -> Self {
         unsafe {

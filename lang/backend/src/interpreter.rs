@@ -8,6 +8,8 @@ use crate::{RuntimeError, RuntimeErrorKind, lexical_scope::LexicalScope, manifol
 pub struct Interpreter {
     current_scope: LexicalScope,
     manifold_table: ManifoldTable,
+
+    circle_segments: i32,
 }
 
 impl Interpreter {
@@ -15,6 +17,9 @@ impl Interpreter {
         Self {
             manifold_table: ManifoldTable::new(),
             current_scope: LexicalScope::new_root(),
+
+            // TODO: add $fn setter support
+            circle_segments: 20,
         }
     }
 
@@ -158,6 +163,21 @@ impl Interpreter {
             "cube" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
                 Ok(Object::Manifold(self.manifold_table.add(Manifold::cube(x, y, z, false), ManifoldDisposition::Physical)))
+            }
+
+            "cylinder" => {
+                // TODO: needs to support diameters or cone forms
+                if arguments.len() != 2 {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::IncorrectArity { expected: 2..=2, actual: arguments.len() },
+                        span,
+                    ));
+                };
+
+                let height = arguments[0].as_number(span.clone())?;
+                let radius = arguments[1].as_number(span.clone())?;
+
+                Ok(Object::Manifold(self.manifold_table.add(Manifold::cylinder(radius, height, self.circle_segments, false), ManifoldDisposition::Physical)))
             }
 
             "copy" => {
