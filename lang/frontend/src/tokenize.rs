@@ -141,6 +141,18 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 tokens.push(Token::new(TokenKind::Identifier(buffer), source.span(start_index, length)));
             }
 
+            // Line comment
+            '/' if chars.peek().is_some_and(|(_, char)| *char == '/') => {
+                loop {
+                    let Some((_, char)) = chars.next()
+                    else { break };
+
+                    if char == '\n' {
+                        break
+                    }
+                }
+            }
+
             '(' => {
                 tokens.push(Token::new(TokenKind::LParen, source.span(start_index, 1)))
             },
