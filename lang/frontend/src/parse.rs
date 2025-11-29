@@ -116,7 +116,21 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     // If they return `None`, then they (or a subparser) already emitted an error.
 
     pub fn parse_statement(&mut self) -> Option<Node> {
-        let expr = self.parse_expression()?;
+        let mut expr = self.parse_expression()?;
+
+        // Parse assignment
+        if let Node { span, kind: NodeKind::Identifier(id) } = &expr {
+            if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
+                self.tokens.next().unwrap(); // discard equals
+
+                let value = self.parse_expression()?;
+                let binding_span = span.union_with(&[value.span.clone()]);
+                expr = Node::new(NodeKind::Binding {
+                    name: id.clone(),
+                    value: Box::new(value),
+                }, binding_span);
+            }
+        }
 
         // TODO: permit not needing this if we just had a closing brace
         self.expect(TokenKind::Semicolon)?;
@@ -163,16 +177,6 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                             )
                         )
                     }
-                } else if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
-                    // Binding assignment
-                    self.tokens.next().unwrap();
-
-                    let value = self.parse_expression()?;
-                    let binding_span = span.union_with(&[value.span.clone()]);
-                    Some(Node::new(NodeKind::Binding {
-                        name: id,
-                        value: Box::new(value),
-                    }, binding_span))
                 } else {
                     // Just a normal identifier usage
                     Some(
