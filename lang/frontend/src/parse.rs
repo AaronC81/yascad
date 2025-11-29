@@ -57,6 +57,15 @@ pub enum BinaryOperator {
     Divide,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum StatementTerminator {
+    // Needs a semicolon for termination
+    NeedsSemicolon,
+
+    /// Ends with a brace, so semicolon is optional
+    Braced,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
@@ -130,34 +139,43 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     // If they return `None`, then they (or a subparser) already emitted an error.
 
     pub fn parse_statement(&mut self) -> Option<Node> {
-        let mut expr = self.parse_expression()?;
+        let (mut expr, mut terminator) = self.parse_expression()?;
 
         // Parse assignment
         if let Node { span, kind: NodeKind::Identifier(id) } = &expr {
             if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
                 self.tokens.next().unwrap(); // discard equals
 
-                let value = self.parse_expression()?;
+                let (value, value_terminator) = self.parse_expression()?;
                 let binding_span = span.union_with(&[value.span.clone()]);
                 expr = Node::new(NodeKind::Binding {
                     name: id.clone(),
                     value: Box::new(value),
                 }, binding_span);
+                terminator = value_terminator;
             }
         }
 
-        // TODO: permit not needing this if we just had a closing brace
-        self.expect(TokenKind::Semicolon)?;
-
+        match terminator {
+            StatementTerminator::NeedsSemicolon => {
+                self.expect(TokenKind::Semicolon)?;
+            },
+            StatementTerminator::Braced => {
+                if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Semicolon) {
+                    self.tokens.next();
+                }
+            },
+        };
+        
         Some(expr)
     }
 
-    fn parse_expression(&mut self) -> Option<Node> {
+    fn parse_expression(&mut self) -> Option<(Node, StatementTerminator)> {
         self.parse_add_sub_expression()
     }
 
-    fn parse_add_sub_expression(&mut self) -> Option<Node> {
-        let mut left = self.parse_mul_div_expression()?;
+    fn parse_add_sub_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut left, mut terminator) = self.parse_mul_div_expression()?;
 
         while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Plus || token.kind == TokenKind::Minus) {
             let Token { kind, .. } = self.tokens.next().unwrap();
@@ -167,7 +185,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 _ => unreachable!(),
             };
 
-            let right = self.parse_mul_div_expression()?;
+            let (right, right_terminator) = self.parse_mul_div_expression()?;
             let span = left.span.union_with(&[right.span.clone()]);
             left = Node::new(
                 NodeKind::BinaryOperation {
@@ -177,13 +195,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 },
                 span,
             );
+            terminator = right_terminator;
         }
 
-        Some(left)
+        Some((left, terminator))
     }
 
-    fn parse_mul_div_expression(&mut self) -> Option<Node> {
-        let mut left = self.parse_bottom_expression()?;
+    fn parse_mul_div_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut left, mut terminator) = self.parse_bottom_expression()?;
 
         while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Star || token.kind == TokenKind::ForwardSlash) {
             let Token { kind, .. } = self.tokens.next().unwrap();
@@ -193,7 +212,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 _ => unreachable!(),
             };
 
-            let right = self.parse_bottom_expression()?;
+            let (right, right_terminator) = self.parse_bottom_expression()?;
             let span = left.span.union_with(&[right.span.clone()]);
             left = Node::new(
                 NodeKind::BinaryOperation {
@@ -203,12 +222,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 },
                 span,
             );
+            terminator = right_terminator;
         }
 
-        Some(left)
+        Some((left, terminator))
     }
 
-    fn parse_bottom_expression(&mut self) -> Option<Node> {
+    fn parse_bottom_expression(&mut self) -> Option<(Node, StatementTerminator)> {
         let Token { kind, span } = self.tokens.next()?;
         match kind {
             TokenKind::Identifier(id) => {
@@ -224,45 +244,53 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     //
                     // Likewise, if there's a brace, we parsed a modifier with multiple children.
                     if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::Identifier(_))) {
-                        let child = self.parse_expression()?;
-                        return Some(Node::new(NodeKind::ModifierApplication {
-                            name: id,
-                            arguments,
-                            children: vec![child]
-                        }, call_span))
+                        let (child, modifier) = self.parse_expression()?;
+                        return Some((
+                            Node::new(NodeKind::ModifierApplication {
+                                name: id,
+                                arguments,
+                                children: vec![child],
+                            }, call_span),
+                            modifier,
+                        ))
                     } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
                         let children = self.parse_braced_statement_list()?;
-                        return Some(Node::new(NodeKind::ModifierApplication {
-                            name: id,
-                            arguments,
-                            children,
-                        }, call_span))
+                        return Some((
+                            Node::new(NodeKind::ModifierApplication {
+                                name: id,
+                                arguments,
+                                children,
+                            }, call_span),
+                            StatementTerminator::Braced,
+                        ))
                     } else {
-                        Some(
+                        Some((
                             self.parse_any_field_access_suffixes(
                                 Node::new(NodeKind::Call {
                                     name: id,
                                     arguments,
                                 }, call_span)
-                            )
-                        )
+                            ),
+                            StatementTerminator::NeedsSemicolon,
+                        ))
                     }
                 } else {
                     // Just a normal identifier usage
-                    Some(
+                    Some((
                         self.parse_any_field_access_suffixes(
                             Node::new(NodeKind::Identifier(id), span)
-                        )
-                    )
+                        ),
+                        StatementTerminator::NeedsSemicolon,
+                    ))
                 }
             }
 
             TokenKind::Number(num) => {
                 if let Ok(value) = num.parse() {
-                    Some(Node::new(NodeKind::NumberLiteral(value), span))
+                    Some((Node::new(NodeKind::NumberLiteral(value), span), StatementTerminator::NeedsSemicolon))
                 } else {
                     self.errors.push(ParseError::new(ParseErrorKind::InvalidNumber, span.clone()));
-                    Some(Node::new(NodeKind::NumberLiteral(0.0), span))
+                    Some((Node::new(NodeKind::NumberLiteral(0.0), span), StatementTerminator::NeedsSemicolon))
                 }
             }
             
@@ -270,7 +298,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 let (items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket)?;
                 let vector_span = span.union_with(&[end_span]);
 
-                Some(Node::new(NodeKind::VectorLiteral(items), vector_span))
+                Some((Node::new(NodeKind::VectorLiteral(items), vector_span), StatementTerminator::NeedsSemicolon))
             }
 
             _ => {
@@ -326,7 +354,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
         let mut items = vec![];
         loop {
-            if let Some(arg) = self.parse_expression() {
+            if let Some((arg, _)) = self.parse_expression() {
                 items.push(arg);
             }
 
