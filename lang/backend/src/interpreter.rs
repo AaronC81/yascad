@@ -81,8 +81,8 @@ impl Interpreter {
                 }
             },
 
-            NodeKind::ModifierApplication { name, arguments, children } => {
-                // TODO: change later to render each child as a virtual manifold, which the modifier
+            NodeKind::OperatorApplication { name, arguments, children } => {
+                // TODO: change later to render each child as a virtual manifold, which the operator
                 //       body can copy as needed
                 let all_children = children.iter()
                     .map(|child| self.interpret(child, ItManifold::None))
@@ -99,10 +99,10 @@ impl Interpreter {
                     };
 
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, it_manifold)) // TODO
+                    .map(|arg| self.interpret(arg, it_manifold))
                     .collect::<Result<Vec<_>, _>>()?;
                 
-                let manifold = self.apply_builtin_modifier(name, &arguments, manifold_children, node.span.clone())?;
+                let manifold = self.apply_builtin_operator(name, &arguments, manifold_children, node.span.clone())?;
                 Ok(Object::Manifold(manifold))
             }
 
@@ -204,16 +204,16 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_modifier(&mut self, name: &str, arguments: &[Object], mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn apply_builtin_operator(&mut self, name: &str, arguments: &[Object], mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         match name {
             "translate" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
-                let manifold = self.union_modifier_children(children, span)?;
+                let manifold = self.union_operator_children(children, span)?;
                 Ok(self.manifold_table.map(manifold, |m| m.translate(x, y, z)))
             }
 
             "union" => {
-                self.union_modifier_children(children, span)
+                self.union_operator_children(children, span)
             }
 
             "difference" => {
@@ -227,14 +227,14 @@ impl Interpreter {
                     return Ok(minuend);
                 }
 
-                let subtrahend = self.union_modifier_children(children, span)?;
+                let subtrahend = self.union_operator_children(children, span)?;
                 let (subtrahend, _) = self.manifold_table.remove(subtrahend);
 
                 Ok(self.manifold_table.map(minuend, |m| m.difference(&subtrahend)))
             }
 
             "buffer" => {
-                let manifold = self.union_modifier_children(children, span)?;
+                let manifold = self.union_operator_children(children, span)?;
                 let (manifold, _) = self.manifold_table.remove(manifold);
                 
                 Ok(self.manifold_table.add(manifold, ManifoldDisposition::Virtual))
@@ -276,7 +276,7 @@ impl Interpreter {
         Ok((x, y, z))
     }
 
-    fn union_modifier_children(&mut self, mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn union_operator_children(&mut self, mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
         if children.len() == 1 {
             return Ok(children.remove(0))
         }

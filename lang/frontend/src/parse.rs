@@ -23,7 +23,7 @@ pub enum NodeKind {
     VectorLiteral(Vec<Node>),
     ItReference,
 
-    ModifierApplication {
+    OperatorApplication {
         name: String,
         arguments: Vec<Node>,
 
@@ -246,24 +246,24 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     let call_span = span.union_with(&[arguments_span]);
 
                     // If, after the call, there's immediately another identifier, then this call
-                    // was actually a modifier application. We just parsed the modifier, now parse
+                    // was actually an operator application. We just parsed the operator, now parse
                     // its only child.
                     //
-                    // Likewise, if there's a brace, we parsed a modifier with multiple children.
+                    // Likewise, if there's a brace, we parsed a operator with multiple children.
                     if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::Identifier(_))) {
-                        let (child, modifier) = self.parse_expression()?;
+                        let (child, operator) = self.parse_expression()?;
                         return Some((
-                            Node::new(NodeKind::ModifierApplication {
+                            Node::new(NodeKind::OperatorApplication {
                                 name: id,
                                 arguments,
                                 children: vec![child],
                             }, call_span),
-                            modifier,
+                            operator,
                         ))
                     } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
                         let children = self.parse_braced_statement_list()?;
                         return Some((
-                            Node::new(NodeKind::ModifierApplication {
+                            Node::new(NodeKind::OperatorApplication {
                                 name: id,
                                 arguments,
                                 children,
