@@ -16,6 +16,10 @@ pub struct ExecutionContext<'c> {
 
     /// The current lexical scope.
     lexical_scope: Rc<RefCell<LexicalScope>>,
+
+    /// The current map of arguments available within a module/operator body.
+    /// This is distinct from scope so we don't look up to parent frames.
+    arguments: HashMap<String, Object>,
 }
 
 impl<'c> ExecutionContext<'c> {
@@ -24,6 +28,7 @@ impl<'c> ExecutionContext<'c> {
             it_manifold: ItManifold::None,
             operator_children: None,
             lexical_scope: Rc::new(RefCell::new(LexicalScope::new_root())),
+            arguments: HashMap::new(),
         }
     }
 
@@ -48,6 +53,13 @@ impl<'c> ExecutionContext<'c> {
     pub fn with_deeper_scope(&'_ self) -> ExecutionContext<'_> {
         ExecutionContext {
             lexical_scope: Rc::new(RefCell::new(LexicalScope::new(self.lexical_scope.clone()))),
+            ..self.clone()
+        }
+    }
+
+    pub fn with_arguments(&'_ self, arguments: HashMap<String, Object>) -> ExecutionContext<'_> {
+        ExecutionContext {
+            arguments,
             ..self.clone()
         }
     }
@@ -87,10 +99,15 @@ impl Interpreter {
         Ok(())
     }
 
-    // TODO: break out these parameters into some kind of `InterpreterState`
     pub fn interpret(&mut self, node: &Node, ctx: &ExecutionContext) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
+                // Arguments have highest priority - they probably need to be less separated in
+                // future, but, eh
+                if let Some(object) = ctx.arguments.get(id) {
+                    return Ok(object.clone());
+                }
+
                 ctx.lexical_scope.borrow()
                     .get_binding(id)
                     .ok_or_else(|| RuntimeError::new(
@@ -160,8 +177,25 @@ impl Interpreter {
                 // directly given the physical manifold indexes. They can do whatever they like with
                 // them.
                 if let Some(user_operator) = ctx.lexical_scope.borrow().get_operator(name) {
-                    let NodeKind::OperatorDefinition { body, name: _ } = &user_operator.kind.clone()
+                    let NodeKind::OperatorDefinition { body, parameters, name: _ } = &user_operator.kind.clone()
                     else { unreachable!() };
+
+                    // Validate number of arguments so forthcoming `zip` is definitely balanced
+                    if arguments.len() != parameters.len() {
+                        return Err(RuntimeError::new(
+                            RuntimeErrorKind::IncorrectArity {
+                                expected: parameters.len()..=parameters.len(),
+                                actual: arguments.len(),
+                            },
+                            node.span.clone(),
+                        ));
+                    }
+
+                    // Convert to hash, that's what the context expects
+                    let arguments = arguments.into_iter()
+                        .zip(parameters)
+                        .map(|(arg, param)| (param.to_owned(), arg))
+                        .collect::<HashMap<_, _>>();
 
                     let temporary_virtual_manifolds = manifold_children.into_iter()
                         .map(|index| {
@@ -174,7 +208,8 @@ impl Interpreter {
                         self.interpret_body(body, &ctx
                             .with_it_manifold(ItManifold::None)
                             .with_operator_children(Some(&temporary_virtual_manifolds))
-                            .with_deeper_scope())?
+                            .with_deeper_scope()
+                            .with_arguments(arguments))?
                     );
                     let result_manifold = self.union_manifolds(result_manifolds, node.span.clone())?;
 
@@ -198,12 +233,23 @@ impl Interpreter {
             
             NodeKind::Binding { name, value } => {
                 let value = self.interpret(&value, ctx)?;
+
+                // As far as a language user is concerned, bindings and arguments existing in the
+                // same scope
+                if ctx.arguments.contains_key(name) {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::DuplicateBinding(name.to_owned()),
+                        node.span.clone(),
+                    ))
+                }
+
                 if !ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), value.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),
                         node.span.clone(),
                     ))
                 }
+
                 Ok(value)
             },
 
@@ -239,7 +285,7 @@ impl Interpreter {
                 Ok(Object::Number(-value))
             },
 
-            NodeKind::OperatorDefinition { name, body: _ } => {
+            NodeKind::OperatorDefinition { name, .. } => {
                 if !ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), node.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),

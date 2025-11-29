@@ -54,7 +54,7 @@ pub enum NodeKind {
 
     OperatorDefinition {
         name: String,
-        // TODO: parameters
+        parameters: Vec<String>, // TODO: optional parameters
         body: Vec<Node>,
     }
 }
@@ -76,7 +76,7 @@ pub enum StatementTerminator {
     Braced,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Diagnostic)]
+#[derive(Debug, Clone, PartialEq, Diagnostic)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
 
@@ -99,11 +99,12 @@ impl Display for ParseError {
 }
 impl Error for ParseError {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParseErrorKind {
     UnexpectedToken(TokenKind),
     UnexpectedEnd,
     InvalidNumber,
+    InvalidOperatorParameter,
 }
 
 impl Display for ParseErrorKind {
@@ -112,6 +113,7 @@ impl Display for ParseErrorKind {
             ParseErrorKind::UnexpectedToken(token_kind) => write!(f, "unexpected {token_kind}"),
             ParseErrorKind::UnexpectedEnd => write!(f, "unexpected end-of-file"),
             ParseErrorKind::InvalidNumber => write!(f, "number could not be parsed, possibly out-of-range?"),
+            ParseErrorKind::InvalidOperatorParameter => write!(f, "invalid operator parameter"),
         }
     }
 }
@@ -168,21 +170,31 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 return None;
             };
 
+            // Parse parameters
             self.expect(TokenKind::LParen)?;
-            // TODO: parameters
-            self.expect(TokenKind::RParen)?;
+            let (parameters, _) = self.parse_bracketed_comma_separated_list(TokenKind::RParen)?;
+            let parameters = parameters.into_iter()
+                .map(|node| match node.kind {
+                    NodeKind::Identifier(id) => id,
+                    _ => {
+                        self.errors.push(ParseError::new(ParseErrorKind::InvalidOperatorParameter, node.span));
+                        "DUMMY".to_owned()
+                    }
+                })
+                .collect::<Vec<_>>();
 
+            // Parse body
             let body = self.parse_braced_statement_list()?;
-
             let body_spans = body
                 .iter()
                 .map(|item| item.span.clone())
                 .collect::<Vec<_>>();
-            let span = start_span.union_with(&body_spans);
 
+            let span = start_span.union_with(&body_spans);
             return Some(Node::new(
                 NodeKind::OperatorDefinition {
                     name: name.to_owned(),
+                    parameters,
                     body,
                 },
                 span,
