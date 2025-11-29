@@ -41,6 +41,20 @@ pub enum NodeKind {
         value: Box<Node>,
         field: String,
     },
+
+    BinaryOperation {
+        left: Box<Node>,
+        right: Box<Node>,
+        op: BinaryOperator,
+    },
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,6 +153,62 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_expression(&mut self) -> Option<Node> {
+        self.parse_add_sub_expression()
+    }
+
+    fn parse_add_sub_expression(&mut self) -> Option<Node> {
+        let mut left = self.parse_mul_div_expression()?;
+
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Plus || token.kind == TokenKind::Minus) {
+            let Token { kind, .. } = self.tokens.next().unwrap();
+            let op = match kind {
+                TokenKind::Plus => BinaryOperator::Add,
+                TokenKind::Minus => BinaryOperator::Subtract,
+                _ => unreachable!(),
+            };
+
+            let right = self.parse_mul_div_expression()?;
+            let span = left.span.union_with(&[right.span.clone()]);
+            left = Node::new(
+                NodeKind::BinaryOperation {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op,
+                },
+                span,
+            );
+        }
+
+        Some(left)
+    }
+
+    fn parse_mul_div_expression(&mut self) -> Option<Node> {
+        let mut left = self.parse_bottom_expression()?;
+
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Star || token.kind == TokenKind::ForwardSlash) {
+            let Token { kind, .. } = self.tokens.next().unwrap();
+            let op = match kind {
+                TokenKind::Star => BinaryOperator::Multiply,
+                TokenKind::ForwardSlash => BinaryOperator::Divide,
+                _ => unreachable!(),
+            };
+
+            let right = self.parse_bottom_expression()?;
+            let span = left.span.union_with(&[right.span.clone()]);
+            left = Node::new(
+                NodeKind::BinaryOperation {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op,
+                },
+                span,
+            );
+        }
+
+        Some(left)
+    }
+
+    fn parse_bottom_expression(&mut self) -> Option<Node> {
         let Token { kind, span } = self.tokens.next()?;
         match kind {
             TokenKind::Identifier(id) => {

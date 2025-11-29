@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use manifold_rs::Manifold;
-use yascad_frontend::{InputSourceSpan, Node, NodeKind};
+use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
 use crate::{RuntimeError, RuntimeErrorKind, lexical_scope::LexicalScope, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
 
@@ -103,7 +103,21 @@ impl Interpreter {
                         node.span.clone(),
                     ))
                 }
-            }
+            },
+
+            NodeKind::BinaryOperation { left, right, op } => {
+                let left = self.interpret(&left)?.as_number(node.span.clone())?;
+                let right = self.interpret(&right)?.as_number(node.span.clone())?;
+
+                let result = match op {
+                    BinaryOperator::Add => left + right,
+                    BinaryOperator::Subtract => left - right,
+                    BinaryOperator::Multiply => left * right,
+                    BinaryOperator::Divide => left / right,
+                };
+
+                Ok(Object::Number(result))
+            },
         }
     }
 
