@@ -19,6 +19,7 @@ pub enum NodeKind {
     Identifier(String),
     NumberLiteral(f64),
     VectorLiteral(Vec<Node>),
+    ItReference,
 
     ModifierApplication {
         name: String,
@@ -299,6 +300,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 let vector_span = span.union_with(&[end_span]);
 
                 Some((Node::new(NodeKind::VectorLiteral(items), vector_span), StatementTerminator::NeedsSemicolon))
+            }
+
+            TokenKind::KwIt => {
+                Some((
+                    self.parse_any_field_access_suffixes(
+                        Node::new(NodeKind::ItReference, span)
+                    ),
+                    StatementTerminator::NeedsSemicolon
+                ))
             }
 
             _ => {

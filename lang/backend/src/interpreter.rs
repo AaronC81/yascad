@@ -30,10 +30,10 @@ impl Interpreter {
     }
 
     pub fn interpret_top_level(&mut self, node: &Node) -> Result<Object, RuntimeError> {
-        self.interpret(node)
+        self.interpret(node, ItManifold::None)
     }
 
-    pub fn interpret(&mut self, node: &Node) -> Result<Object, RuntimeError> {
+    pub fn interpret(&mut self, node: &Node, it_manifold: ItManifold) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
                 self.current_scope.get_binding(id)
@@ -51,23 +51,50 @@ impl Interpreter {
             NodeKind::VectorLiteral(items) => {
                 Ok(Object::Vector(
                     items.iter()
-                        .map(|node| self.interpret(node))
+                        .map(|node| self.interpret(node, it_manifold))
                         .collect::<Result<Vec<_>, _>>()?
                 ))
-            }
+            },
+
+            NodeKind::ItReference => {
+                match it_manifold {
+                    ItManifold::Some(manifold_table_index) => {
+                        Ok(Object::Manifold(manifold_table_index.clone()))
+                    },
+                    ItManifold::UnsupportedNotOneChild => {
+                        Err(RuntimeError::new(
+                            RuntimeErrorKind::ItReferenceUnsupportedNotOneChild,
+                            node.span.clone(),
+                        ))
+                    },
+                    ItManifold::None => {
+                        Err(RuntimeError::new(
+                            RuntimeErrorKind::ItReferenceInvalid,
+                            node.span.clone(),
+                        ))
+                    },
+                }
+            },
 
             NodeKind::ModifierApplication { name, arguments, children } => {
                 // TODO: change later to render each child as a virtual manifold, which the modifier
                 //       body can copy as needed
                 let all_children = children.iter()
-                    .map(|child| self.interpret(child))
+                    .map(|child| self.interpret(child, ItManifold::None))
                     .collect::<Result<Vec<_>, _>>()?;
                 let manifold_children = all_children.into_iter()
                     .filter_map(|child| child.into_manifold(node.span.clone()).ok())
                     .collect::<Vec<_>>();
 
+                let it_manifold =
+                    if manifold_children.len() == 1 {
+                        ItManifold::Some(&manifold_children.first().unwrap())
+                    } else {
+                        ItManifold::UnsupportedNotOneChild
+                    };
+
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg))
+                    .map(|arg| self.interpret(arg, it_manifold)) // TODO
                     .collect::<Result<Vec<_>, _>>()?;
                 
                 let manifold = self.apply_builtin_modifier(name, &arguments, manifold_children, node.span.clone())?;
@@ -76,13 +103,13 @@ impl Interpreter {
 
             NodeKind::Call { name, arguments } => {
                 let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg))
+                    .map(|arg| self.interpret(arg, it_manifold))
                     .collect::<Result<Vec<_>, _>>()?;
                 self.call_builtin_function(name, &arguments, node.span.clone())
             },
             
             NodeKind::Binding { name, value } => {
-                let value = self.interpret(&value)?;
+                let value = self.interpret(&value, it_manifold)?;
                 if !self.current_scope.add_binding(name.to_owned(), value.clone()) {
                     return Err(RuntimeError::new(
                         RuntimeErrorKind::DuplicateBinding(name.to_owned()),
@@ -93,7 +120,7 @@ impl Interpreter {
             },
 
             NodeKind::FieldAccess { value, field } => {
-                let value = self.interpret(&value)?;
+                let value = self.interpret(&value, it_manifold)?;
 
                 if let Some(field_value) = value.get_field(field, &self.manifold_table) {
                     Ok(field_value)
@@ -106,8 +133,8 @@ impl Interpreter {
             },
 
             NodeKind::BinaryOperation { left, right, op } => {
-                let left = self.interpret(&left)?.as_number(node.span.clone())?;
-                let right = self.interpret(&right)?.as_number(node.span.clone())?;
+                let left = self.interpret(&left, it_manifold)?.as_number(node.span.clone())?;
+                let right = self.interpret(&right, it_manifold)?.as_number(node.span.clone())?;
 
                 let result = match op {
                     BinaryOperator::Add => left + right,
@@ -241,4 +268,17 @@ impl Interpreter {
         }
         Ok(self.manifold_table.add(result, disposition))
     }
+}
+
+/// Describes the manifold which will be referenced by `it`.
+#[derive(Clone, Copy)]
+pub enum ItManifold<'a> {
+    /// `it` is valid and references a manifold.
+    Some(&'a ManifoldTableIndex),
+
+    /// `it` would usually be valid here, but it is unsupported because there is not one child.
+    UnsupportedNotOneChild,
+
+    /// `it` is not valid here.
+    None,
 }

@@ -19,6 +19,8 @@ pub enum TokenKind {
     Identifier(String),
     Number(String),
 
+    KwIt,
+
     LParen,
     RParen,
     LBrace,
@@ -48,6 +50,8 @@ impl Display for TokenKind {
             TokenKind::RBrace => write!(f, "right brace"),
             TokenKind::LBracket => write!(f, "left bracket"),
             TokenKind::RBracket => write!(f, "right bracket"),
+
+            TokenKind::KwIt => write!(f, "keyword \"it\""),
 
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
@@ -137,8 +141,12 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                     }
                 }
 
-                let length = buffer.len();
-                tokens.push(Token::new(TokenKind::Identifier(buffer), source.span(start_index, length)));
+                let span = source.span(start_index, buffer.len());
+                let token_kind = match lookup_keyword(&buffer) {
+                    Some(kw) => kw,
+                    None => TokenKind::Identifier(buffer),
+                };
+                tokens.push(Token::new(token_kind, span));
             }
 
             // Line comment
@@ -211,6 +219,13 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
     }
 
     (tokens, errors)
+}
+
+fn lookup_keyword(name: &str) -> Option<TokenKind> {
+    match name {
+        "it" => Some(TokenKind::KwIt),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

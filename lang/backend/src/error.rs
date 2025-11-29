@@ -31,6 +31,8 @@ pub enum RuntimeErrorKind {
     IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
     MixedManifoldDisposition,
     DuplicateBinding(String),
+    ItReferenceInvalid,
+    ItReferenceUnsupportedNotOneChild,
 }
 
 impl Display for RuntimeErrorKind {
@@ -53,6 +55,8 @@ impl Display for RuntimeErrorKind {
             },
             RuntimeErrorKind::MixedManifoldDisposition => write!(f, "this operation tried to mix manifolds of different dispositions"),
             RuntimeErrorKind::DuplicateBinding(id) => write!(f, "binding named \"{id}\" is already defined"),
+            RuntimeErrorKind::ItReferenceInvalid => write!(f, "cannot use `it` outside of modifier target arguments"),
+            RuntimeErrorKind::ItReferenceUnsupportedNotOneChild => write!(f, "`it` is not currently supported without exactly one modifier child - consider using `union()` first"),
         }
     }
 }
