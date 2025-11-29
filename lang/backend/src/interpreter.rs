@@ -145,6 +145,11 @@ impl Interpreter {
 
                 Ok(Object::Number(result))
             },
+
+            NodeKind::UnaryNegate(value) => {
+                let value = self.interpret(&value, it_manifold)?.as_number(node.span.clone())?;
+                Ok(Object::Number(-value))
+            }
         }
     }
 

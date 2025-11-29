@@ -48,6 +48,7 @@ pub enum NodeKind {
         right: Box<Node>,
         op: BinaryOperator,
     },
+    UnaryNegate(Box<Node>),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -308,6 +309,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         Node::new(NodeKind::ItReference, span)
                     ),
                     StatementTerminator::NeedsSemicolon
+                ))
+            }
+
+            TokenKind::Minus => {
+                let (value, terminator) = self.parse_bottom_expression()?;
+                let span = span.union_with(&[value.span.clone()]);
+                Some((
+                    Node::new(NodeKind::UnaryNegate(Box::new(value)), span),
+                    terminator,
                 ))
             }
 
