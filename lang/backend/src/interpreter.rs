@@ -315,6 +315,30 @@ impl Interpreter {
                 }
                 Ok(Object::Null)
             },
+
+            NodeKind::ForLoop { loop_variable, loop_source, body } => {
+                let loop_source = self.interpret(&loop_source, ctx)?.into_vector(node.span.clone())?;
+
+                let mut result_objects = vec![];
+                for item in loop_source {
+                    let ctx = ctx.with_deeper_scope();
+                    if !ctx.lexical_scope.borrow_mut().add_binding(loop_variable.clone(), item) {
+                        return Err(RuntimeError::new(
+                            RuntimeErrorKind::DuplicateBinding(loop_variable.to_owned()),
+                            node.span.clone(),
+                        ))
+                    }
+                    
+                    result_objects.extend(self.interpret_body(body, &ctx)?)
+                }
+
+                let result_manifold = self.union_manifolds(
+                    Self::filter_objects_to_manifolds(result_objects),
+                    node.span.clone(),
+                )?;
+
+                Ok(Object::Manifold(result_manifold))
+            }
         }
     }
 

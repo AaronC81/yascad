@@ -61,7 +61,13 @@ pub enum NodeKind {
         name: String,
         parameters: Vec<String>, // TODO: optional parameters
         body: Vec<Node>,
-    }
+    },
+
+    ForLoop {
+        loop_variable: String,
+        loop_source: Box<Node>,
+        body: Vec<Node>,
+    },
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -200,6 +206,45 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 NodeKind::OperatorDefinition {
                     name: name.to_owned(),
                     parameters,
+                    body,
+                },
+                span,
+            ))
+        }
+
+        // Try parse `for` loop
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwFor) {
+            let Token { span: start_span, .. } = self.tokens.next().unwrap();
+
+            self.expect(TokenKind::LParen)?;
+            
+            // TODO: REALLY need to break this sequence out into a function
+            let Some(Token { kind, span: name_span }) = self.tokens.next()
+            else {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                return None
+            };
+            let TokenKind::Identifier(loop_variable) = &kind
+            else {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), name_span));
+                return None
+            };
+
+            self.expect(TokenKind::Equals)?;
+            let (loop_source, _) = self.parse_expression()?;
+            self.expect(TokenKind::RParen)?;
+
+            let body = self.parse_braced_statement_list()?;
+            let body_spans = body
+                .iter()
+                .map(|item| item.span.clone())
+                .collect::<Vec<_>>();
+
+            let span = start_span.union_with(&body_spans);
+            return Some(Node::new(
+                NodeKind::ForLoop {
+                    loop_variable: loop_variable.to_owned(),
+                    loop_source: Box::new(loop_source),
                     body,
                 },
                 span,

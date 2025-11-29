@@ -23,6 +23,7 @@ pub enum TokenKind {
 
     KwIt,
     KwOperator,
+    KwFor,
 
     LParen,
     RParen,
@@ -57,6 +58,7 @@ impl Display for TokenKind {
 
             TokenKind::KwIt => write!(f, "keyword \"it\""),
             TokenKind::KwOperator => write!(f, "keyword \"operator\""),
+            TokenKind::KwFor => write!(f, "keyword \"for\""),
 
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
@@ -238,6 +240,7 @@ fn lookup_keyword(name: &str) -> Option<TokenKind> {
     match name {
         "it" => Some(TokenKind::KwIt),
         "operator" => Some(TokenKind::KwOperator),
+        "for" => Some(TokenKind::KwFor),
         _ => None,
     }
 }
