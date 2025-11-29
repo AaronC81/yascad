@@ -35,6 +35,7 @@ pub enum RuntimeErrorKind {
     ItReferenceInvalid,
     ItReferenceUnsupportedNotOneChild,
     ChildrenInvalid,
+    FlippedRange,
 }
 
 impl Display for RuntimeErrorKind {
@@ -61,6 +62,7 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::ItReferenceInvalid => write!(f, "cannot use `it` outside of operator target arguments"),
             RuntimeErrorKind::ItReferenceUnsupportedNotOneChild => write!(f, "`it` is not currently supported without exactly one operator child - consider using `union()` first"),
             RuntimeErrorKind::ChildrenInvalid => write!(f, "cannot use `children` outside of operator body"),
+            RuntimeErrorKind::FlippedRange => write!(f, "end of range is lower than start"),
         }
     }
 }

@@ -128,6 +128,27 @@ impl Interpreter {
                 ))
             },
 
+            NodeKind::VectorRangeLiteral { start, end } => {
+                let start = self.interpret(&start, ctx)?.as_number(node.span.clone())?;
+                let end = self.interpret(&end, ctx)?.as_number(node.span.clone())?;
+
+                if end < start {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::FlippedRange,
+                        node.span.clone(),
+                    ));
+                }
+
+                let mut current = start;
+                let mut items = vec![Object::Number(current)];
+                while current < end {
+                    current += 1.0;
+                    items.push(Object::Number(current));
+                }
+
+                Ok(Object::Vector(items))
+            }
+
             NodeKind::ItReference => {
                 match ctx.it_manifold {
                     ItManifold::Some(manifold_table_index) => {
@@ -359,6 +380,11 @@ impl Interpreter {
                     .collect::<Vec<_>>();
 
                 Ok(Object::Manifold(self.union_manifolds(copied_children, span)?))
+            }
+
+            "__debug" => {
+                println!("{arguments:#?}");
+                Ok(Object::Null)
             }
 
             _ => Err(RuntimeError::new(

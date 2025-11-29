@@ -21,6 +21,11 @@ pub enum NodeKind {
     Identifier(String),
     NumberLiteral(f64),
     VectorLiteral(Vec<Node>),
+    VectorRangeLiteral {
+        start: Box<Node>,
+        end: Box<Node>,
+        // TODO: step
+    },
     ItReference,
 
     OperatorApplication {
@@ -357,10 +362,56 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
             
             TokenKind::LBracket => {
-                let (items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket)?;
-                let vector_span = span.union_with(&[end_span]);
+                // TODO: support parsing empty vector
 
-                Some((Node::new(NodeKind::VectorLiteral(items), vector_span), StatementTerminator::NeedsSemicolon))
+                // Parse the first item ourselves, because we need to check whether this is an
+                // item-based vector or a range vector.
+                let (first_item, _) = self.parse_expression()?;
+
+                match self.tokens.peek() {
+                    // Single-item vector
+                    Some(Token { kind: TokenKind::RBracket, span: end_span }) => {
+                        let vector_span = span.union_with(&[end_span.clone()]);
+                        Some((Node::new(NodeKind::VectorLiteral(vec![first_item]), vector_span), StatementTerminator::NeedsSemicolon))
+                    },
+
+                    // Multi-item vector
+                    Some(Token { kind: TokenKind::Comma, .. }) => {
+                        self.tokens.next().unwrap();
+
+                        let (mut items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket)?;
+                        items.insert(0, first_item);
+
+                        let vector_span = span.union_with(&[end_span.clone()]);
+                        Some((Node::new(NodeKind::VectorLiteral(items), vector_span), StatementTerminator::NeedsSemicolon))
+                    },
+
+                    // Range vector
+                    Some(Token { kind: TokenKind::Colon, .. }) => {
+                        self.tokens.next().unwrap();
+
+                        let (end_item, _) = self.parse_expression()?;
+                        self.expect(TokenKind::RBracket)?;
+
+                        let vector_span = span.union_with(&[end_item.span.clone()]);
+                        Some((
+                            Node::new(NodeKind::VectorRangeLiteral {
+                                start: Box::new(first_item),
+                                end: Box::new(end_item),
+                            }, vector_span),
+                            StatementTerminator::NeedsSemicolon
+                        ))
+                    }
+
+                    Some(Token { span, .. }) => {
+                        self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), span.clone()));
+                        None
+                    },
+                    None => {
+                        self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                        None
+                    },
+                }
             }
 
             TokenKind::KwIt => {
