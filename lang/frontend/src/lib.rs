@@ -52,6 +52,13 @@ impl InputSourceOrigin {
     pub fn new_file(path: impl AsRef<Path>) -> Self {
         InputSourceOrigin::File(path.as_ref().to_owned())
     }
+
+    pub fn name(&self) -> String {
+        match self {
+            InputSourceOrigin::String => "<input>".to_owned(),
+            InputSourceOrigin::File(path) => path.to_string_lossy().to_string(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,5 +112,35 @@ impl InputSourceSpan {
         all_spans.push(self.clone());
 
         Self::union(&all_spans[..]).unwrap() // There will always be at least one because we have ourself
+    }
+}
+
+// TODO: christ do not do this. temporary miette hack
+unsafe impl Send for InputSourceSpan {}
+unsafe impl Sync for InputSourceSpan {}
+
+impl miette::SourceCode for InputSourceSpan {
+    fn read_span<'a>(
+        &'a self,
+        span: &miette::SourceSpan,
+        context_lines_before: usize,
+        context_lines_after: usize,
+    ) -> Result<Box<dyn miette::SpanContents<'a> + 'a>, miette::MietteError> {
+        let span = self.source.content.read_span(span, context_lines_before, context_lines_after)?;
+        let contents = miette::MietteSpanContents::new_named(
+            self.source.origin.name(),
+            span.data(),
+            *span.span(),
+            span.line(),
+            span.column(),
+            span.line_count(),
+        );
+        Ok(Box::new(contents))
+    }
+}
+
+impl From<InputSourceSpan> for miette::SourceSpan {
+    fn from(value: InputSourceSpan) -> Self {
+        miette::SourceSpan::new(value.start.into(), value.length)
     }
 }

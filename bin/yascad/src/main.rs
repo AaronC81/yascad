@@ -1,6 +1,7 @@
-use std::{path::PathBuf, rc::Rc};
+use std::{path::PathBuf, process::exit, rc::Rc};
 
 use clap::Parser as ClapParser;
+use miette::Diagnostic;
 use yascad_backend::Interpreter;
 use yascad_frontend::{InputSource, Parser, tokenize};
 
@@ -21,16 +22,15 @@ fn main() {
     let source = Rc::new(InputSource::new_file(args.input).unwrap());
 
     let (tokens, errors) = tokenize(source.clone());
-    assert!(errors.is_empty());
+    if !errors.is_empty() {
+        abort_with_errors(errors);
+    }
 
     let mut parser = Parser::new(source.clone(), tokens);
     let stmts = parser.parse_statements();
 
     if !parser.errors.is_empty() {
-        for error in parser.errors {
-            println!("{error}");
-        }
-        return;
+        abort_with_errors(parser.errors);
     }
 
     let mut interpreter = Interpreter::new();
@@ -48,4 +48,11 @@ fn main() {
         .build_top_level_manifold()
         .meshgl()
         .export(args.output);
+}
+
+fn abort_with_errors<E: Diagnostic + Send + Sync + 'static>(errors: Vec<E>) -> ! {
+    for error in errors {
+        println!("{:?}", miette::Report::new(error));
+    }
+    exit(1);
 }

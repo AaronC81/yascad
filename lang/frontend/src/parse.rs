@@ -1,5 +1,7 @@
 use std::{error::Error, fmt::Display, iter::Peekable, rc::Rc};
 
+use miette::Diagnostic;
+
 use crate::{InputSource, InputSourceSpan, Token, TokenKind};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,9 +70,12 @@ pub enum StatementTerminator {
     Braced,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Diagnostic)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
+
+    #[source_code]
+    #[label]
     pub span: InputSourceSpan,
 }
 

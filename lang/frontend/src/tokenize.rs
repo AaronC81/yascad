@@ -1,5 +1,7 @@
 use std::{error::Error, fmt::Display, rc::Rc};
 
+use miette::Diagnostic;
+
 use crate::{InputSource, InputSourceSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,9 +68,13 @@ impl Display for TokenKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Diagnostic)]
+#[diagnostic()]
 pub struct TokenizeError {
     pub kind: TokenizeErrorKind,
+
+    #[source_code]
+    #[label]
     pub span: InputSourceSpan,
 }
 
