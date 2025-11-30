@@ -20,7 +20,6 @@ async function renderPreview() {
     if (!stlViewer) {
       console.log("Creating STL viewer");
       const klass = (window as any).StlViewer;
-      // TODO: this doesn't work for a second render
       stlViewer = new klass(document.getElementById("output-model"), { models: [] });
     } else {
       console.log("Cleaning up existing STL viewer");
