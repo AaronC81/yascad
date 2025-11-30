@@ -1,22 +1,39 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 
-let greetInputEl: HTMLInputElement | null;
-let greetMsgEl: HTMLElement | null;
+let stlViewer: any;
 
-async function greet() {
-  if (greetMsgEl && greetInputEl) {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsgEl.textContent = await invoke("greet", {
-      name: greetInputEl.value,
-    });
+async function renderPreview() {
+  const codeInput = document.getElementById("code-input") as HTMLTextAreaElement;
+  const code = codeInput.value;
+  console.log(code);
+
+  try {
+    const stlPath: string = await invoke("render_preview", { code });
+    document.getElementById("output-messages")!.innerText = `Rendered successfully to ${stlPath}`;
+
+    const stlUri = convertFileSrc(stlPath);
+
+    if (!stlViewer) {
+      console.log("Creating STL viewer");
+      const klass = (window as any).StlViewer;
+      // TODO: this doesn't work for a second render
+      stlViewer = new klass(document.getElementById("output-model"), { models: [] });
+    } else {
+      console.log("Cleaning up existing STL viewer");
+      stlViewer.remove_model(1);
+      stlViewer.clean();
+    }
+
+    // Append a random number to force reload
+    stlViewer.add_model({ id:1, filename: stlUri + "?" + Math.random() });
+  } catch (e) {
+    console.log(e);
+    document.getElementById("output-messages")!.innerText = String(e);
   }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
+  document.getElementById("render-preview-button")!.onclick = () => {
+    renderPreview();
+  };
 });
