@@ -1,10 +1,11 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import * as monaco from "monaco-editor";
 
 let stlViewer: any;
+let codeEditor: monaco.editor.IStandaloneCodeEditor;
 
 async function renderPreview() {
-  const codeInput = document.getElementById("code-input") as HTMLTextAreaElement;
-  const code = codeInput.value;
+  const code = codeEditor.getValue();
   console.log(code);
 
   try {
@@ -36,4 +37,10 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("render-preview-button")!.onclick = () => {
     renderPreview();
   };
+  
+  codeEditor = monaco.editor.create(document.getElementById("code-input")!, {
+    theme: "vs-dark",
+    automaticLayout: true,
+    minimap: undefined,
+  });
 });
