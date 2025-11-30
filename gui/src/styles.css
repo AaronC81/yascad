@@ -119,3 +119,7 @@ button {
     background-color: #0f0f0f69;
   }
 }
+
+/* Fix Monaco not being able to resize to smaller sizes
+   https://github.com/atularen/ngx-monaco-editor/issues/71#issuecomment-1761733159 */
+.monaco-editor { position: absolute !important; }
