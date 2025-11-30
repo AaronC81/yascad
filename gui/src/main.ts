@@ -1,5 +1,6 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import * as monaco from "monaco-editor";
+import monarchTokenizer from "./monarchTokenizer";
 
 let stlViewer: any;
 let codeEditor: monaco.editor.IStandaloneCodeEditor;
@@ -40,13 +41,18 @@ async function renderPreview() {
   }
 }
 
+
 window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("render-preview-button")!.onclick = () => {
     renderPreview();
   };
   
+  monaco.languages.register({ id: "yascad" });
+  monaco.languages.setMonarchTokensProvider("yascad", monarchTokenizer as any);
+
   codeEditor = monaco.editor.create(document.getElementById("code-input")!, {
     theme: "vs-dark",
+    language: "yascad",
     automaticLayout: true,
     minimap: undefined,
   });
