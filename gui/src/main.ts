@@ -43,4 +43,10 @@ window.addEventListener("DOMContentLoaded", () => {
     automaticLayout: true,
     minimap: undefined,
   });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "F5") {
+      renderPreview();
+    }
+  });
 });
