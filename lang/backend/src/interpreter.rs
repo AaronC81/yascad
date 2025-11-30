@@ -173,7 +173,10 @@ impl Interpreter {
                 let all_children = children.iter()
                     .map(|child| self.interpret(child, &ctx.with_it_manifold(ItManifold::None)))
                     .collect::<Result<Vec<_>, _>>()?;
-                let manifold_children = Self::filter_objects_to_manifolds(all_children);
+
+                // Not `physical_manifolds` because applying an operator to a virtual manifold is
+                // allowed
+                let manifold_children = self.filter_objects_to_manifolds(all_children);
 
                 let it_manifold =
                     if manifold_children.len() == 1 {
@@ -225,13 +228,12 @@ impl Interpreter {
                         })
                         .collect::<Vec<_>>();
 
-                    let result_manifolds = Self::filter_objects_to_manifolds(
-                        self.interpret_body(body, &ctx
-                            .with_it_manifold(ItManifold::None)
-                            .with_operator_children(Some(&temporary_virtual_manifolds))
-                            .with_deeper_scope()
-                            .with_arguments(arguments))?
-                    );
+                    let result_objects = self.interpret_body(body, &ctx
+                        .with_it_manifold(ItManifold::None)
+                        .with_operator_children(Some(&temporary_virtual_manifolds))
+                        .with_deeper_scope()
+                        .with_arguments(arguments))?;
+                    let result_manifolds = self.filter_objects_to_physical_manifolds(result_objects);
                     let result_manifold = self.union_manifolds(result_manifolds, node.span.clone())?;
 
                     for index in temporary_virtual_manifolds {
@@ -333,7 +335,7 @@ impl Interpreter {
                 }
 
                 let result_manifold = self.union_manifolds(
-                    Self::filter_objects_to_manifolds(result_objects),
+                    self.filter_objects_to_physical_manifolds(result_objects),
                     node.span.clone(),
                 )?;
 
@@ -508,8 +510,8 @@ impl Interpreter {
         Ok(self.manifold_table.add(result, disposition))
     }
 
-    /// Given a list of objects, filter it down to only the manifolds, and return them.
-    fn filter_objects_to_manifolds(objects: Vec<Object>) -> Vec<ManifoldTableIndex> {
+    /// Given a list of objects, filter it down to only manifolds, and return them.
+    fn filter_objects_to_manifolds(&self, objects: Vec<Object>) -> Vec<ManifoldTableIndex> {
         objects.into_iter()
             .filter_map(|child|
                 if let Object::Manifold(index) = child {
@@ -518,6 +520,14 @@ impl Interpreter {
                     None
                 }
             )
+            .collect()
+    }
+
+    /// Given a list of objects, filter it down to only the *physical* manifolds, and return them.
+    fn filter_objects_to_physical_manifolds(&self, objects: Vec<Object>) -> Vec<ManifoldTableIndex> {
+        self.filter_objects_to_manifolds(objects)
+            .into_iter()
+            .filter(|index| self.manifold_table.get_disposition(index) == ManifoldDisposition::Physical)
             .collect()
     }
 }

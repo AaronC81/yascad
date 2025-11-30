@@ -59,6 +59,10 @@ impl ManifoldTable {
         &self.table.get(&index.0).expect("manifold not in table").0
     }
 
+    pub fn get_disposition(&self, index: &ManifoldTableIndex) -> ManifoldDisposition {
+        self.table.get(&index.0).expect("manifold not in table").1
+    }
+
     pub fn map(&mut self, index: ManifoldTableIndex, func: impl FnOnce(Manifold) -> Manifold) -> ManifoldTableIndex {
         let (manifold, disposition) = self.remove(index);
         self.add(func(manifold), disposition)
