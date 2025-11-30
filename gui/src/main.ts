@@ -8,6 +8,9 @@ async function renderPreview() {
   const code = codeEditor.getValue();
   console.log(code);
 
+  const outputMessages = document.getElementById("output-messages")!;
+  const outputModel = document.getElementById("output-model")!;
+
   try {
     const stlPath: string = await invoke("render_preview", { code });
     document.getElementById("output-messages")!.innerText = `Rendered successfully to ${stlPath}`;
@@ -27,9 +30,14 @@ async function renderPreview() {
 
     // Append a random number to force reload
     stlViewer.add_model({ id:1, filename: stlUri + "?" + Math.random() });
+
+    outputModel.style.display = "block";
+    outputMessages.style.display = "none";
   } catch (e) {
-    console.log(e);
-    document.getElementById("output-messages")!.innerText = String(e);
+    outputMessages.innerText = String(e);
+
+    outputModel.style.display = "none";
+    outputMessages.style.display = "block";
   }
 }
 
