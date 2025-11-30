@@ -1,0 +1,9 @@
+[package]
+name = "yascad-lang"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+yascad-frontend = { path = "../frontend" }
+yascad-backend = { path = "../backend" }
+manifold-rs = { path = "../../manifold-rs" }

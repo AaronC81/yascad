@@ -1,54 +1,32 @@
-use std::{path::PathBuf, rc::Rc};
+use std::path::PathBuf;
 
-use yascad_frontend::InputSource;
+use miette::Diagnostic;
+use yascad_lang::{InputSource, LangError, build_model};
 
 #[tauri::command]
 fn render_preview(code: &str) -> Result<String, String> {
-    let source = Rc::new(InputSource::new_string(code.to_owned()));
+    let source = InputSource::new_string(code.to_owned());
 
-    let (tokens, errors) = yascad_frontend::tokenize(source.clone());
-    if !errors.is_empty() {
-        return Err(
-            errors.into_iter()
-                .map(|e| format!("{:?}", miette::Report::new(e)))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
-    }
-
-    let mut parser = yascad_frontend::Parser::new(source.clone(), tokens);
-    let stmts = parser.parse_statements();
-
-    if !parser.errors.is_empty() {
-        return Err(
-            parser.errors.into_iter()
-                .map(|e| format!("{:?}", miette::Report::new(e)))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
-    }
-
-    let mut interpreter = yascad_backend::Interpreter::new();
-    match interpreter.interpret_top_level(&stmts) {
-        Ok(_) => {
+    match build_model(source) {
+        Ok(model) => {
             // TODO: use unique temp file paths (multiple instances, cross-platform)
             let temp_path = PathBuf::from("/tmp/yascad_model.stl");
+            model.meshgl().export(&temp_path);
 
-            interpreter
-                .build_top_level_manifold()
-                .meshgl()
-                .export(&temp_path);
             Ok(temp_path.to_string_lossy().to_string())
-        },
-        Err(error) => {
-            Err(
-                errors.into_iter()
-                    .map(|e| format!("{e}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
         }
+
+        Err(LangError::Tokenize(errors)) => Err(flatten_miette_errors(errors)),
+        Err(LangError::Parser(errors)) => Err(flatten_miette_errors(errors)),
+        Err(LangError::Runtime(error)) => Err(format!("{error}")),
     }
+}
+
+fn flatten_miette_errors<E: Diagnostic + Send + Sync + 'static>(errors: Vec<E>) -> String {
+    errors.into_iter()
+        .map(|e| format!("{:?}", miette::Report::new(e)))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

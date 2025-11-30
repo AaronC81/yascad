@@ -5409,8 +5409,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "miette",
- "yascad-backend",
- "yascad-frontend",
+ "yascad-lang",
 ]
 
 [[package]]
@@ -5439,6 +5438,14 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "yascad-lang",
+]
+
+[[package]]
+name = "yascad-lang"
+version = "0.1.0"
+dependencies = [
+ "manifold-rs",
  "yascad-backend",
  "yascad-frontend",
 ]

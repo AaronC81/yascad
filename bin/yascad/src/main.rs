@@ -1,9 +1,8 @@
-use std::{path::PathBuf, process::exit, rc::Rc};
+use std::{path::PathBuf, process::exit};
 
 use clap::Parser as ClapParser;
 use miette::Diagnostic;
-use yascad_backend::Interpreter;
-use yascad_frontend::{InputSource, Parser, tokenize};
+use yascad_lang::{InputSource, LangError, build_model};
 
 #[derive(ClapParser, Debug)]
 struct Args {
@@ -18,34 +17,20 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    let source = InputSource::new_file(args.input).unwrap();
 
-    let source = Rc::new(InputSource::new_file(args.input).unwrap());
+    match build_model(source) {
+        Ok(model) => {
+            model.meshgl().export(args.output);
+        }
 
-    let (tokens, errors) = tokenize(source.clone());
-    if !errors.is_empty() {
-        abort_with_errors(errors);
-    }
-
-    let mut parser = Parser::new(source.clone(), tokens);
-    let stmts = parser.parse_statements();
-
-    if !parser.errors.is_empty() {
-        abort_with_errors(parser.errors);
-    }
-
-    let mut interpreter = Interpreter::new();
-    match interpreter.interpret_top_level(&stmts) {
-        Ok(_) => {},
-        Err(error) => {
+        Err(LangError::Tokenize(errors)) => abort_with_errors(errors),
+        Err(LangError::Parser(errors)) => abort_with_errors(errors),
+        Err(LangError::Runtime(error)) => {
             println!("{error}");
             return;
         }
     }
-
-    interpreter
-        .build_top_level_manifold()
-        .meshgl()
-        .export(args.output);
 }
 
 fn abort_with_errors<E: Diagnostic + Send + Sync + 'static>(errors: Vec<E>) -> ! {

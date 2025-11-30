@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-yascad-frontend = { path = "../../lang/frontend" }
-yascad-backend = { path = "../../lang/backend" }
+yascad-lang = { path = "../../lang/lib" }
 clap = { version = "4.5.53", features = ["derive"] }
 miette = { version = "7.6.0", features = ["fancy"] }
