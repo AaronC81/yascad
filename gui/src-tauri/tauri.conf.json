@@ -13,9 +13,9 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "yascad-gui",
-        "width": 800,
-        "height": 600
+        "title": "YASCAD",
+        "width": 1366,
+        "height": 768
       }
     ],
     "security": {
