@@ -18,6 +18,10 @@ async function renderPreview() {
 
     const stlUri = convertFileSrc(stlPath);
 
+    // TODO: Improve viewer:
+    //   - Should start at more isometric angle
+    //   - Perspective/ortho toggle
+    //   - Show a grid
     if (!stlViewer) {
       console.log("Creating STL viewer");
       const klass = (window as any).StlViewer;
