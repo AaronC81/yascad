@@ -109,24 +109,6 @@ impl MeshGL {
             data.into_iter().map(|i| i as usize).collect()
         }
     }
-
-    /// Export this mesh to a file.
-    pub fn export(&self, path: impl AsRef<Path>) {
-        // TODO: the provided `manifold_export_meshgl` is apparently "provided as a demonstration"
-        //       and the C bindings for it don't seem to give me any way to handle errors.
-        //       Maybe this needs replacing with something different/custom.
-
-        // TODO: permit taking these options.
-        // Not sure how you're supposed to allocate this.
-        unsafe {
-            // Alignment of 8 is a safe guess
-            let options = alloc(Layout::from_size_align(raw::manifold_export_options_size(), 8).unwrap()) as *mut raw::ManifoldExportOptions;
-            raw::manifold_export_options(options as *mut c_void);
-
-            let path = CString::new(path.as_ref().as_os_str().as_encoded_bytes()).unwrap();
-            raw::manifold_export_meshgl(path.as_ptr(), self.ptr, options);
-        }
-    }
 }
 
 impl Drop for MeshGL {

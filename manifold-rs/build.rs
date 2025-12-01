@@ -8,9 +8,7 @@ fn main() {
     // Build our own dependencies - configuration is in CMakeLists
     CMakeWrapper(cmake::build(".."))
         .static_lib_dependency("manifoldc", "build/vendor/manifold/bindings/c")
-        .static_lib_dependency("manifold",  "build/vendor/manifold/src")
-        .static_lib_dependency("assimp",    "build/vendor/assimp/lib")
-        .static_lib_dependency("z",         "build/vendor/zlib");
+        .static_lib_dependency("manifold",  "build/vendor/manifold/src");
 
     // Generate bindings for Manifold's C interface
     let bindings = bindgen::Builder::default()
