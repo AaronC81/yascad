@@ -3,6 +3,9 @@ mod raw;
 mod manifold;
 pub use manifold::*;
 
+mod cross_section;
+pub use cross_section::*;
+
 mod meshgl;
 pub use meshgl::*;
 
