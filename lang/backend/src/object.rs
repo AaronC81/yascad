@@ -1,15 +1,16 @@
 use std::rc::Rc;
 
-use manifold_rs::{Manifold, Vec3};
+use manifold_rs::{CrossSection, Manifold, Vec3};
 use yascad_frontend::InputSourceSpan;
 
-use crate::{RuntimeError, RuntimeErrorKind, manifold_table::{ManifoldTable, ManifoldTableIndex}};
+use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryTable, GeometryTableIndex}};
 
 #[derive(Debug, Clone)]
 pub enum Object {
     Null,
     Number(f64),
-    Manifold(ManifoldTableIndex),
+    Manifold(GeometryTableIndex),
+    CrossSection(GeometryTableIndex),
     Vector(Vec<Object>),
 }
 
@@ -18,12 +19,13 @@ impl Object {
         match self {
             Object::Null => "null",
             Object::Number(_) => "number",
-            Object::Manifold(_) => "manifold",
+            Object::Manifold(_) => "3D manifold",
+            Object::CrossSection(_) => "2D cross-section",
             Object::Vector(_) => "vector",
         }.to_owned()
     }
 
-    pub fn get_field(&self, field: &str, manifold_table: &ManifoldTable) -> Option<Object> {
+    pub fn get_field(&self, field: &str, manifold_table: &GeometryTable) -> Option<Object> {
         match self {
             Object::Null | Object::Number(_) => None,
 
@@ -37,7 +39,7 @@ impl Object {
             },
 
             Object::Manifold(index) => {
-                let bounding_box = manifold_table.get(index).bounding_box();
+                let bounding_box = manifold_table.get(index).unwrap_manifold().bounding_box();
 
                 match field {
                     "origin" | "min_point" => Some(bounding_box.min_point().into()),
@@ -45,7 +47,10 @@ impl Object {
                     "size" => Some(bounding_box.size().into()),
                     _ => None,
                 }
-            }
+            },
+
+            // TODO: fields on cross-sections
+            Object::CrossSection(_) => todo!(),
         }
     }
 
@@ -59,11 +64,21 @@ impl Object {
         }
     }
 
-    pub fn into_manifold(self, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    pub fn into_manifold(self, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
         match self {
             Object::Manifold(manifold) => Ok(manifold),
             _ => Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectType { expected: "manifold".to_owned(), actual: self.describe_type() },
+                RuntimeErrorKind::IncorrectType { expected: "3D manifold".to_owned(), actual: self.describe_type() },
+                span.clone())
+            ),
+        }
+    }
+
+    pub fn into_cross_section(self, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+        match self {
+            Object::CrossSection(xs) => Ok(xs),
+            _ => Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectType { expected: "2D cross-section".to_owned(), actual: self.describe_type() },
                 span.clone())
             ),
         }

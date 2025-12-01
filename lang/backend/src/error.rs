@@ -29,7 +29,7 @@ pub enum RuntimeErrorKind {
     UndefinedField { ty: String, field: String },
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
     IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
-    MixedManifoldDisposition,
+    MixedGeometryDisposition,
     DuplicateBinding(String),
     DuplicateOperator(String),
     ItReferenceInvalid,
@@ -56,7 +56,7 @@ impl Display for RuntimeErrorKind {
                 write!(f, ", got {actual}")?;
                 Ok(())
             },
-            RuntimeErrorKind::MixedManifoldDisposition => write!(f, "this operation tried to mix manifolds of different dispositions"),
+            RuntimeErrorKind::MixedGeometryDisposition => write!(f, "this operation tried to mix geometries of different dispositions"),
             RuntimeErrorKind::DuplicateBinding(id) => write!(f, "binding named \"{id}\" is already defined"),
             RuntimeErrorKind::DuplicateOperator(id) => write!(f, "operator named \"{id}\" is already defined"),
             RuntimeErrorKind::ItReferenceInvalid => write!(f, "cannot use `it` outside of operator target arguments"),

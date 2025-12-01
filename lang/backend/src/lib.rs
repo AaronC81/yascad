@@ -1,5 +1,5 @@
 mod object;
-mod manifold_table;
+mod geometry_table;
 mod lexical_scope;
 
 mod error;

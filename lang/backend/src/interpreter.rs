@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use manifold_rs::Manifold;
 use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, lexical_scope::LexicalScope, manifold_table::{ManifoldDisposition, ManifoldTable, ManifoldTableIndex}, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -12,7 +12,7 @@ pub struct ExecutionContext<'c> {
     it_manifold: ItManifold<'c>,
 
     /// If executing an operator body, its `children`.
-    operator_children: Option<&'c [ManifoldTableIndex]>,
+    operator_children: Option<&'c [GeometryTableIndex]>,
 
     /// The current lexical scope.
     lexical_scope: Rc<RefCell<LexicalScope>>,
@@ -41,7 +41,7 @@ impl<'c> ExecutionContext<'c> {
         }
     }
 
-    pub fn with_operator_children<'r>(&self, operator_children: Option<&'r [ManifoldTableIndex]>) -> ExecutionContext<'r>
+    pub fn with_operator_children<'r>(&self, operator_children: Option<&'r [GeometryTableIndex]>) -> ExecutionContext<'r>
     where 'c: 'r
     {
         ExecutionContext {
@@ -66,14 +66,14 @@ impl<'c> ExecutionContext<'c> {
 }
 
 pub struct Interpreter {
-    manifold_table: ManifoldTable,
+    manifold_table: GeometryTable,
     circle_segments: i32,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            manifold_table: ManifoldTable::new(),
+            manifold_table: GeometryTable::new(),
 
             // TODO: add $fn setter support
             circle_segments: 20,
@@ -82,8 +82,13 @@ impl Interpreter {
 
     pub fn build_top_level_manifold(&self) -> Manifold {
         let mut result = Manifold::new();
-        for (manifold, disposition) in self.manifold_table.iter_manifolds() {
-            if *disposition == ManifoldDisposition::Physical {
+
+        // TODO: top-level 2D should be allowed, and mixture of 2D and 3D should be an error.
+        for (entry, disposition) in self.manifold_table.iter_geometry() {
+            if *disposition == GeometryDisposition::Physical {
+                let GeometryTableEntry::Manifold(manifold) = entry
+                else { panic!("top-level 2D geometry is not yet supported") };
+
                 result = result.union(manifold);
             }
         }
@@ -224,7 +229,7 @@ impl Interpreter {
                     let temporary_virtual_manifolds = manifold_children.into_iter()
                         .map(|index| {
                             let (m, _) = self.manifold_table.remove(index);
-                            self.manifold_table.add(m, ManifoldDisposition::Virtual)
+                            self.manifold_table.add(m, GeometryDisposition::Virtual)
                         })
                         .collect::<Vec<_>>();
 
@@ -350,11 +355,11 @@ impl Interpreter {
             .collect()
     }
 
-    fn call_builtin_function(&mut self, name: &str, arguments: &[Object], operator_children: Option<&[ManifoldTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
+    fn call_builtin_function(&mut self, name: &str, arguments: &[Object], operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
         match name {
             "cube" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
-                Ok(Object::Manifold(self.manifold_table.add(Manifold::cube(x, y, z, false), ManifoldDisposition::Physical)))
+                Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cube(x, y, z, false), GeometryDisposition::Physical)))
             }
 
             "cylinder" => {
@@ -369,7 +374,7 @@ impl Interpreter {
                 let height = arguments[0].as_number(span.clone())?;
                 let radius = arguments[1].as_number(span.clone())?;
 
-                Ok(Object::Manifold(self.manifold_table.add(Manifold::cylinder(radius, height, self.circle_segments, false), ManifoldDisposition::Physical)))
+                Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cylinder(radius, height, self.circle_segments, false), GeometryDisposition::Physical)))
             }
 
             "copy" => {
@@ -385,7 +390,7 @@ impl Interpreter {
 
                 // Even if it's being copied in a virtual disposition, we can make it physical here.
                 // The `buffer` will "downgrade" it later.
-                let copied_manifold = self.manifold_table.add(manifold.clone(), ManifoldDisposition::Physical);
+                let copied_manifold = self.manifold_table.add(manifold.clone(), GeometryDisposition::Physical);
                 Ok(Object::Manifold(copied_manifold))
             }
 
@@ -401,7 +406,7 @@ impl Interpreter {
                 let copied_children = children.iter()
                     .map(|child| {
                         let m = self.manifold_table.get(child).clone();
-                        self.manifold_table.add(m, ManifoldDisposition::Physical)
+                        self.manifold_table.add(m, GeometryDisposition::Physical)
                     })
                     .collect::<Vec<_>>();
 
@@ -420,12 +425,12 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_operator(&mut self, name: &str, arguments: &[Object], mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn apply_builtin_operator(&mut self, name: &str, arguments: &[Object], mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
         match name {
             "translate" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
                 let manifold = self.union_manifolds(children, span)?;
-                Ok(self.manifold_table.map(manifold, |m| m.translate(x, y, z)))
+                Ok(self.manifold_table.map_manifold(manifold, |m| m.translate(x, y, z)))
             }
 
             "union" => {
@@ -445,15 +450,16 @@ impl Interpreter {
 
                 let subtrahend = self.union_manifolds(children, span)?;
                 let (subtrahend, _) = self.manifold_table.remove(subtrahend);
+                let subtrahend = subtrahend.unwrap_manifold();
 
-                Ok(self.manifold_table.map(minuend, |m| m.difference(&subtrahend)))
+                Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend)))
             }
 
             "buffer" => {
                 let manifold = self.union_manifolds(children, span)?;
                 let (manifold, _) = self.manifold_table.remove(manifold);
                 
-                Ok(self.manifold_table.add(manifold, ManifoldDisposition::Virtual))
+                Ok(self.manifold_table.add(manifold, GeometryDisposition::Virtual))
             }
 
             _ => Err(RuntimeError::new(
@@ -492,26 +498,26 @@ impl Interpreter {
         Ok((x, y, z))
     }
 
-    fn union_manifolds(&mut self, mut children: Vec<ManifoldTableIndex>, span: InputSourceSpan) -> Result<ManifoldTableIndex, RuntimeError> {
+    fn union_manifolds(&mut self, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
         if children.len() == 1 {
             return Ok(children.remove(0))
         }
 
-        let (all_manifolds, all_dispositions): (Vec<_>, Vec<_>) = children.into_iter()
+        let (all_entries, all_dispositions): (Vec<_>, Vec<_>) = children.into_iter()
             .map(|child| self.manifold_table.remove(child))
             .unzip();
 
-        let disposition = ManifoldDisposition::flatten(&all_dispositions, span)?;
+        let disposition = GeometryDisposition::flatten(&all_dispositions, span)?;
         
         let mut result = Manifold::new();
-        for manifold in all_manifolds {
-            result = result.union(&manifold);
+        for entry in all_entries {
+            result = result.union(entry.unwrap_manifold());
         }
-        Ok(self.manifold_table.add(result, disposition))
+        Ok(self.manifold_table.add_manifold(result, disposition))
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
-    fn filter_objects_to_manifolds(&self, objects: Vec<Object>) -> Vec<ManifoldTableIndex> {
+    fn filter_objects_to_manifolds(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
         objects.into_iter()
             .filter_map(|child|
                 if let Object::Manifold(index) = child {
@@ -524,10 +530,10 @@ impl Interpreter {
     }
 
     /// Given a list of objects, filter it down to only the *physical* manifolds, and return them.
-    fn filter_objects_to_physical_manifolds(&self, objects: Vec<Object>) -> Vec<ManifoldTableIndex> {
+    fn filter_objects_to_physical_manifolds(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
         self.filter_objects_to_manifolds(objects)
             .into_iter()
-            .filter(|index| self.manifold_table.get_disposition(index) == ManifoldDisposition::Physical)
+            .filter(|index| self.manifold_table.get_disposition(index) == GeometryDisposition::Physical)
             .collect()
     }
 }
@@ -536,7 +542,7 @@ impl Interpreter {
 #[derive(Clone, Copy, Debug)]
 pub enum ItManifold<'a> {
     /// `it` is valid and references a manifold.
-    Some(&'a ManifoldTableIndex),
+    Some(&'a GeometryTableIndex),
 
     /// `it` would usually be valid here, but it is unsupported because there is not one child.
     UnsupportedNotOneChild,
