@@ -1,0 +1,7 @@
+---
+source: tests/test_build.rs
+expression: text_stl
+input_file: tests/inputs/basic.yascad
+extension: stl
+snapshot_kind: binary
+---

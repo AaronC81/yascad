@@ -5,5 +5,7 @@ members = [
     "lang/frontend",
     "lang/backend",
     "bin/yascad",
-    "gui/src-tauri"
-, "lang/lib"]
+    "gui/src-tauri",
+    "lang/lib",
+    "tests",
+]
