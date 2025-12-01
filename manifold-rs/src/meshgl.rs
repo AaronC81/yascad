@@ -1,6 +1,6 @@
 use std::{alloc::{Layout, alloc}, ffi::CString, os::raw::c_void, path::Path};
 
-use crate::{manifold::Manifold, raw};
+use crate::{Vec3, manifold::Manifold, raw};
 
 pub struct MeshGL {
     ptr: *mut raw::ManifoldMeshGL,
@@ -109,6 +109,40 @@ impl MeshGL {
             data.into_iter().map(|i| i as usize).collect()
         }
     }
+
+    /// Returns an iterator over high-level triangle data for this mesh.
+    /// 
+    /// Each item includes:
+    ///   - The three vertex points which define the triangle
+    ///   - Any additional arbitrary vertex properties
+    pub fn iter_triangles(&self) -> impl Iterator<Item = MeshTriangle> {
+        let vp = self.count_vertex_properties();
+        let verts = self.vertex_property_data();
+        let tris = self.triangle_vertex_data();
+
+        (0..self.count_triangles()).map(move |tri_index| {
+            // Find raw property data for each vertex
+            let vert_indices = &tris[(tri_index * VERTICES_IN_TRI)..(tri_index * VERTICES_IN_TRI + VERTICES_IN_TRI)];
+            let vert_props: [&[f32]; VERTICES_IN_TRI] = (0..VERTICES_IN_TRI)
+                .map(|i| &verts[(vert_indices[i] * vp)..(vert_indices[i] * vp + 3)])
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+
+            let mut triangle = MeshTriangle::default();
+            for (i, props) in vert_props.into_iter().enumerate() {
+                // First three props are always X, Y, Z, and will definitely exist
+                triangle.points[i].x = props[0];
+                triangle.points[i].y = props[1];
+                triangle.points[i].z = props[2];
+
+                // Future props are arbitrary
+                triangle.properties[i] = props[3..].to_vec();
+            }
+            
+            triangle
+        })
+    }
 }
 
 impl Drop for MeshGL {
@@ -117,4 +151,12 @@ impl Drop for MeshGL {
             raw::manifold_delete_meshgl(self.ptr);
         }
     }
+}
+
+const VERTICES_IN_TRI: usize = 3;
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, Default)]
+pub struct MeshTriangle {
+    pub points: [Vec3<f32>; VERTICES_IN_TRI],
+    pub properties: [Vec<f32>; VERTICES_IN_TRI],
 }

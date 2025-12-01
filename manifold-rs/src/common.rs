@@ -1,3 +1,5 @@
+use std::ops;
+
 use crate::raw;
 
 #[derive(Clone, Copy, Debug, PartialEq, Default, PartialOrd)]
@@ -16,6 +18,22 @@ impl<T> Vec3<T> {
 impl<T: Default> Vec3<T> {
     pub fn zero() -> Self {
         Self::default()
+    }
+}
+
+impl<T: ops::Add<Output = T>> ops::Add for Vec3<T> {
+    type Output = Vec3<T>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
+}
+
+impl<T: ops::Sub<Output = T>> ops::Sub for Vec3<T> {
+    type Output = Vec3<T>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec3::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
     }
 }
 
