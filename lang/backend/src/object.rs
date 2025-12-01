@@ -80,8 +80,8 @@ impl Object {
     }
 }
 
-impl From<Vec3> for Object {
-    fn from(value: Vec3) -> Self {
+impl From<Vec3<f64>> for Object {
+    fn from(value: Vec3<f64>) -> Self {
         Self::Vector(vec![Self::Number(value.x), Self::Number(value.y), Self::Number(value.z)])
     }
 }

@@ -30,21 +30,21 @@ impl BoundingBox {
     }
 
     /// The lower point of the two which define the box.
-    pub fn min_point(&self) -> Vec3 {
+    pub fn min_point(&self) -> Vec3<f64> {
         unsafe {
             raw::manifold_box_min(self.ptr).into()
         }
     }
 
     /// The upper point of the two which define the box.
-    pub fn max_point(&self) -> Vec3 {
+    pub fn max_point(&self) -> Vec3<f64> {
         unsafe {
             raw::manifold_box_max(self.ptr).into()
         }
     }
 
     /// The size (dimensions) of the box.
-    pub fn size(&self) -> Vec3 {
+    pub fn size(&self) -> Vec3<f64> {
         unsafe {
             raw::manifold_box_dimensions(self.ptr).into()
         }

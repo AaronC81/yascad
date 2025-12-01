@@ -5,5 +5,6 @@ edition = "2024"
 
 [dependencies]
 yascad-lang = { path = "../../lang/lib" }
+manifold-rs = { path = "../../manifold-rs" }
 clap = { version = "4.5.53", features = ["derive"] }
 miette = { version = "7.6.0", features = ["fancy"] }

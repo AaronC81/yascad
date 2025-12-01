@@ -1,8 +1,9 @@
-use std::{path::PathBuf, process::exit};
+use std::{fs::File, path::PathBuf, process::exit};
 
 use clap::Parser as ClapParser;
 use miette::Diagnostic;
 use yascad_lang::{InputSource, LangError, build_model};
+use manifold_rs::ext::MeshGLExt;
 
 #[derive(ClapParser, Debug)]
 struct Args {
@@ -21,7 +22,10 @@ fn main() {
 
     match build_model(source) {
         Ok(model) => {
-            model.meshgl().export(args.output);
+            let stl = model.meshgl().to_stl("YASCADExport");
+
+            let mut file = File::create(args.output).unwrap();
+            stl.write_text_stl(&mut file).unwrap();
         }
 
         Err(LangError::Tokenize(errors)) => abort_with_errors(errors),

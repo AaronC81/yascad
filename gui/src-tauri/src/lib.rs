@@ -1,5 +1,6 @@
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 
+use manifold_rs::ext::MeshGLExt;
 use miette::Diagnostic;
 use yascad_lang::{InputSource, LangError, build_model};
 
@@ -11,7 +12,10 @@ fn render_preview(code: &str) -> Result<String, String> {
         Ok(model) => {
             // TODO: use unique temp file paths (multiple instances, cross-platform)
             let temp_path = PathBuf::from("/tmp/yascad_model.stl");
-            model.meshgl().export(&temp_path);
+            
+            let stl = model.meshgl().to_stl("YASCADPreview");
+            let mut file = File::create(&temp_path).unwrap();
+            stl.write_text_stl(&mut file).unwrap();
 
             Ok(temp_path.to_string_lossy().to_string())
         }
