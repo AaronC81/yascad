@@ -6,6 +6,9 @@ pub use manifold::*;
 mod cross_section;
 pub use cross_section::*;
 
+mod polygons;
+pub use polygons::*;
+
 mod meshgl;
 pub use meshgl::*;
 

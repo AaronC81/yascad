@@ -1,6 +1,6 @@
 use std::{fmt::Debug, os::raw::c_void};
 
-use crate::{BoundingBox, meshgl::MeshGL, raw};
+use crate::{BoundingBox, Polygons, meshgl::MeshGL, raw};
 
 pub struct Manifold {
     pub(crate) ptr: *mut raw::ManifoldManifold,
@@ -60,6 +60,16 @@ impl Manifold {
         unsafe {
             Self::alloc_build(|ptr|
                 raw::manifold_cylinder(ptr, height, radius_low, radius_high, segments, if centre { 1 } else { 0 }))
+        }
+    }
+
+    /// Create a new manifold by extruding a list of [`Polygons`], usually obtained from a
+    /// [`CrossSection`](`crate::CrossSection`).
+    pub fn extrude(polygons: Polygons, height: f64) -> Self {
+        // TODO: support twisty options too - using C++ defaults for now
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_extrude(ptr, polygons.ptr, height, 0, 0.0, 1.0, 1.0))
         }
     }
 

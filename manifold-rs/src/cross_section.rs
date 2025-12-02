@@ -1,6 +1,6 @@
 use std::{fmt::Debug, os::raw::c_void};
 
-use crate::raw;
+use crate::{Polygons, raw};
 
 pub struct CrossSection {
     pub(crate) ptr: *mut raw::ManifoldCrossSection,
@@ -81,6 +81,15 @@ impl CrossSection {
         unsafe {
             Self::alloc_build(|ptr|
                 raw::manifold_cross_section_union(ptr, self.ptr, other.ptr))
+        }
+    }
+
+    /// Get the polygons for this cross section. 
+    pub fn polygons(&self) -> Polygons {
+        unsafe {
+            let poly = Polygons::alloc();
+            raw::manifold_cross_section_to_polygons(poly.ptr as *mut c_void, self.ptr);
+            poly
         }
     }
 }
