@@ -93,6 +93,50 @@ impl Object {
             ),
         }
     }
+    
+    /// Assume that the object is a vector with two number components, then unpacks the components.
+    /// 
+    /// If it doesn't match this form, returns an appropriate [`RuntimeError`].
+    pub fn into_2d_vector(self, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
+        let vector = self.into_vector(span.clone())?;
+        if vector.len() != 2 {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectVectorLength { expected: 2..=2, actual: vector.len() },
+                span,
+            ));
+        }
+
+        let x = vector[0].as_number(span.clone())?;
+        let y = vector[1].as_number(span.clone())?;
+
+        Ok((x, y))
+    }
+
+    /// Assume that the object is a vector with either two or three number components, then unpacks
+    /// the components. If the third component is omitted, it defaults to 0.
+    /// 
+    /// If it doesn't match this form, returns an appropriate [`RuntimeError`].
+    pub fn into_3d_vector(self, span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
+        let vector = self.into_vector(span.clone())?;
+        if vector.len() != 2 && vector.len() != 3 {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectVectorLength { expected: 2..=3, actual: vector.len() },
+                span,
+            ));
+        }
+
+        let x = vector[0].as_number(span.clone())?;
+        let y = vector[1].as_number(span.clone())?;
+
+        let z =
+            if vector.len() == 3 {
+                vector[2].as_number(span.clone())?
+            } else {
+                0.0
+            };
+
+        Ok((x, y, z))
+    }
 }
 
 impl From<Vec3<f64>> for Object {

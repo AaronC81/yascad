@@ -480,43 +480,12 @@ impl Interpreter {
 
     fn get_vec3_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
         let [argument] = Self::accept_arguments(arguments, &span)?;
-
-        let vector = argument.clone().into_vector(span.clone())?;
-        if vector.len() != 2 && vector.len() != 3 {
-            return Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectVectorLength { expected: 2..=3, actual: vector.len() },
-                span,
-            ));
-        }
-
-        let x = vector[0].as_number(span.clone())?;
-        let y = vector[1].as_number(span.clone())?;
-
-        let z =
-            if vector.len() == 3 {
-                vector[2].as_number(span.clone())?
-            } else {
-                0.0
-            };
-
-        Ok((x, y, z))
+        argument.into_3d_vector(span)
     }
 
     fn get_vec2_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
         let [argument] = Self::accept_arguments(arguments, &span)?;
-
-        let vector = argument.clone().into_vector(span.clone())?;
-        if vector.len() != 2 {
-            return Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectVectorLength { expected: 2..=2, actual: vector.len() },
-                span,
-            ));
-        }
-
-        let x = vector[0].as_number(span.clone())?;
-        let y = vector[1].as_number(span.clone())?;
-
-        Ok((x, y))
+        argument.into_2d_vector(span)
     }
 
     fn union_child_geometry(&mut self, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
