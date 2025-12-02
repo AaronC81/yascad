@@ -1,0 +1,15 @@
+main_cube = buffer() cube([10, 10, 10]);
+corner_cube = buffer() cube([3, 3, 3]);
+
+difference() {
+    copy(main_cube);
+
+    copy(corner_cube);
+
+    translate([
+        main_cube.size.x - corner_cube.size.x,
+        main_cube.size.y - corner_cube.size.y,
+        main_cube.size.z - corner_cube.size.z,
+    ])
+    copy(corner_cube);
+}
