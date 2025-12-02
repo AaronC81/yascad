@@ -54,6 +54,7 @@ impl GeometryTableEntry {
     }
 }
 
+#[derive(Debug)]
 pub struct GeometryTable {
     table: HashMap<usize, (GeometryTableEntry, GeometryDisposition)>,
     next_index: usize,

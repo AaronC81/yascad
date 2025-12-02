@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use manifold_rs::Manifold;
+use manifold_rs::{CrossSection, Manifold};
 use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
 use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
@@ -238,14 +238,14 @@ impl Interpreter {
                         .with_operator_children(Some(&temporary_virtual_manifolds))
                         .with_deeper_scope()
                         .with_arguments(arguments))?;
-                    let result_manifolds = self.filter_objects_to_physical_manifolds(result_objects);
-                    let result_manifold = self.union_manifolds(result_manifolds, node.span.clone())?;
+                    let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
+                    let (geom, disp) = self.union_child_geometry(result_manifolds, node.span.clone())?;
 
                     for index in temporary_virtual_manifolds {
                         self.manifold_table.remove(index);
                     }
 
-                    Ok(Object::Manifold(result_manifold))
+                    Ok(self.create_object_from_new_geometry(geom, disp))
                 } else {
                     let manifold = self.apply_builtin_operator(name, &arguments, manifold_children, node.span.clone())?;
                     Ok(Object::Manifold(manifold))
@@ -339,12 +339,11 @@ impl Interpreter {
                     result_objects.extend(self.interpret_body(body, &ctx)?)
                 }
 
-                let result_manifold = self.union_manifolds(
-                    self.filter_objects_to_physical_manifolds(result_objects),
+                let (geom, disp) = self.union_child_geometry(
+                    self.filter_objects_to_physical_geometries(result_objects),
                     node.span.clone(),
                 )?;
-
-                Ok(Object::Manifold(result_manifold))
+                Ok(self.create_object_from_new_geometry(geom, disp))
             }
         }
     }
@@ -375,6 +374,11 @@ impl Interpreter {
                 let radius = arguments[1].as_number(span.clone())?;
 
                 Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cylinder(radius, height, self.circle_segments, false), GeometryDisposition::Physical)))
+            }
+
+            "square" => {
+                let (x, y) = Self::get_vec2_from_arguments(arguments, span)?;
+                Ok(Object::Manifold(self.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
             }
 
             "copy" => {
@@ -410,7 +414,8 @@ impl Interpreter {
                     })
                     .collect::<Vec<_>>();
 
-                Ok(Object::Manifold(self.union_manifolds(copied_children, span)?))
+                let (geom, disp) = self.union_child_geometry(copied_children, span)?;
+                Ok(self.create_object_from_new_geometry(geom, disp))
             }
 
             "__debug" => {
@@ -428,13 +433,22 @@ impl Interpreter {
     fn apply_builtin_operator(&mut self, name: &str, arguments: &[Object], mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
         match name {
             "translate" => {
-                let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
-                let manifold = self.union_manifolds(children, span)?;
-                Ok(self.manifold_table.map_manifold(manifold, |m| m.translate(x, y, z)))
+                match self.union_child_geometry(children, span.clone())? {
+                    (GeometryTableEntry::Manifold(manifold), d) => {
+                        let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
+                        Ok(self.manifold_table.add_manifold(manifold.translate(x, y, z), d))
+                    },
+
+                    (GeometryTableEntry::CrossSection(cross_section), d) => {
+                        let (x, y) = Self::get_vec2_from_arguments(arguments, span.clone())?;
+                        Ok(self.manifold_table.add_cross_section(cross_section.translate(x, y), d))
+                    },
+                }
             }
 
             "union" => {
-                self.union_manifolds(children, span)
+                let (geom, disp) = self.union_child_geometry(children, span)?;
+                Ok(self.manifold_table.add(geom, disp))
             }
 
             "difference" => {
@@ -448,18 +462,30 @@ impl Interpreter {
                     return Ok(minuend);
                 }
 
-                let subtrahend = self.union_manifolds(children, span)?;
-                let (subtrahend, _) = self.manifold_table.remove(subtrahend);
+                let (subtrahend, _) = self.union_child_geometry(children, span)?;
                 let subtrahend = subtrahend.unwrap_manifold();
 
                 Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend)))
             }
 
+            "linear_extrude" => {
+                if arguments.len() != 1 {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
+                        span,
+                    ));
+                }
+                let height = arguments[0].as_number(span.clone())?;
+
+                let (geom, disp) = self.union_child_geometry(children, span)?;
+                let cross_section = geom.unwrap_cross_section();
+
+                Ok(self.manifold_table.add_manifold(Manifold::extrude(cross_section.polygons(), height), disp))
+            }
+
             "buffer" => {
-                let manifold = self.union_manifolds(children, span)?;
-                let (manifold, _) = self.manifold_table.remove(manifold);
-                
-                Ok(self.manifold_table.add(manifold, GeometryDisposition::Virtual))
+                let (geom, _) = self.union_child_geometry(children, span)?;
+                Ok(self.manifold_table.add(geom, GeometryDisposition::Virtual))
             }
 
             _ => Err(RuntimeError::new(
@@ -498,22 +524,65 @@ impl Interpreter {
         Ok((x, y, z))
     }
 
-    fn union_manifolds(&mut self, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+    fn get_vec2_from_arguments(arguments: &[Object], span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
+        if arguments.len() != 1 {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
+                span,
+            ));
+        }
+
+        let vector = arguments[0].clone().into_vector(span.clone())?;
+        if vector.len() != 2 {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectVectorLength { expected: 2..=2, actual: vector.len() },
+                span,
+            ));
+        }
+
+        let x = vector[0].as_number(span.clone())?;
+        let y = vector[1].as_number(span.clone())?;
+
+        Ok((x, y))
+    }
+
+    fn union_child_geometry(&mut self, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
         if children.len() == 1 {
-            return Ok(children.remove(0))
+            return Ok(self.manifold_table.remove(children.remove(0)));
         }
 
         let (all_entries, all_dispositions): (Vec<_>, Vec<_>) = children.into_iter()
             .map(|child| self.manifold_table.remove(child))
             .unzip();
 
-        let disposition = GeometryDisposition::flatten(&all_dispositions, span)?;
+        let disposition = GeometryDisposition::flatten(&all_dispositions, span.clone())?;
         
-        let mut result = Manifold::new();
-        for entry in all_entries {
-            result = result.union(entry.unwrap_manifold());
-        }
-        Ok(self.manifold_table.add_manifold(result, disposition))
+        let (first, rest) = all_entries.split_first().unwrap();
+    
+        match first {
+            GeometryTableEntry::Manifold(first_manifold) => {
+                let mut result = first_manifold.clone();
+                for entry in rest {
+                    let GeometryTableEntry::Manifold(manifold) = entry
+                    else { return Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span)) };
+
+                    result = result.union(manifold);
+                }
+                
+                Ok((GeometryTableEntry::Manifold(result), disposition))
+            },
+            GeometryTableEntry::CrossSection(first_cross_section) => {
+                let mut result = first_cross_section.clone();
+                for entry in rest {
+                    let GeometryTableEntry::CrossSection(cross_section) = entry
+                    else { return Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span)) };
+
+                    result = result.union(cross_section);
+                }
+                
+                Ok((GeometryTableEntry::CrossSection(result), disposition))
+            },
+        }        
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
@@ -529,12 +598,21 @@ impl Interpreter {
             .collect()
     }
 
-    /// Given a list of objects, filter it down to only the *physical* manifolds, and return them.
-    fn filter_objects_to_physical_manifolds(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
+    /// Given a list of objects, filter it down to only the *physical* geometries, and return them.
+    fn filter_objects_to_physical_geometries(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
         self.filter_objects_to_manifolds(objects)
             .into_iter()
             .filter(|index| self.manifold_table.get_disposition(index) == GeometryDisposition::Physical)
             .collect()
+    }
+
+    fn create_object_from_new_geometry(&mut self, geometry: GeometryTableEntry, disposition: GeometryDisposition) -> Object {
+        match geometry {
+            GeometryTableEntry::Manifold(manifold) =>
+                Object::Manifold(self.manifold_table.add_manifold(manifold, disposition)),
+            GeometryTableEntry::CrossSection(cross_section) => 
+                Object::CrossSection(self.manifold_table.add_cross_section(cross_section, disposition)),
+        }
     }
 }
 

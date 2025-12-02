@@ -30,6 +30,7 @@ pub enum RuntimeErrorKind {
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
     IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
     MixedGeometryDisposition,
+    MixedGeometryDimensions,
     DuplicateBinding(String),
     DuplicateOperator(String),
     ItReferenceInvalid,
@@ -57,6 +58,7 @@ impl Display for RuntimeErrorKind {
                 Ok(())
             },
             RuntimeErrorKind::MixedGeometryDisposition => write!(f, "this operation tried to mix geometries of different dispositions"),
+            RuntimeErrorKind::MixedGeometryDimensions => write!(f, "this operation tried to mix 2D and 3D geometry"),
             RuntimeErrorKind::DuplicateBinding(id) => write!(f, "binding named \"{id}\" is already defined"),
             RuntimeErrorKind::DuplicateOperator(id) => write!(f, "operator named \"{id}\" is already defined"),
             RuntimeErrorKind::ItReferenceInvalid => write!(f, "cannot use `it` outside of operator target arguments"),
