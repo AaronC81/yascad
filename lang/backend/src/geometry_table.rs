@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::collections::HashMap;
 
 use manifold_rs::{CrossSection, Manifold};
 use yascad_frontend::InputSourceSpan;
@@ -116,5 +116,11 @@ impl GeometryTable {
         let idx = GeometryTableIndex(self.next_index);
         self.next_index += 1;
         idx
+    }
+}
+
+impl Default for GeometryTable {
+    fn default() -> Self {
+        Self::new()
     }
 }

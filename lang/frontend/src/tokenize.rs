@@ -120,12 +120,12 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
 
     while let Some((start_index, char)) = chars.next() {
         match char {
-            _ if char.is_digit(10) => {
+            _ if char.is_ascii_digit() => {
                 let mut buffer = char.to_string();
                 let mut had_decimal_point = false;
 
                 while let Some((_, char)) = chars.peek() {
-                    if char.is_digit(10) {
+                    if char.is_ascii_digit() {
                         let (_, char) = chars.next().unwrap();
                         buffer.push(char)
                     } else if !had_decimal_point && *char == '.' {

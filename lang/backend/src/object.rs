@@ -1,6 +1,4 @@
-use std::rc::Rc;
-
-use manifold_rs::{CrossSection, Manifold, Vec3};
+use manifold_rs::Vec3;
 use yascad_frontend::InputSourceSpan;
 
 use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryTable, GeometryTableIndex}};
@@ -25,6 +23,7 @@ impl Object {
         }.to_owned()
     }
 
+    #[allow(clippy::get_first)] // `get(1/2)` mixed with `first()` is confusing
     pub fn get_field(&self, field: &str, manifold_table: &GeometryTable) -> Option<Object> {
         match self {
             Object::Null | Object::Number(_) => None,

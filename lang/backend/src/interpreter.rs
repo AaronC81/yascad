@@ -65,6 +65,12 @@ impl<'c> ExecutionContext<'c> {
     }
 }
 
+impl Default for ExecutionContext<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct Interpreter {
     manifold_table: GeometryTable,
     circle_segments: i32,
@@ -134,8 +140,8 @@ impl Interpreter {
             },
 
             NodeKind::VectorRangeLiteral { start, end } => {
-                let start = self.interpret(&start, ctx)?.as_number(node.span.clone())?;
-                let end = self.interpret(&end, ctx)?.as_number(node.span.clone())?;
+                let start = self.interpret(start, ctx)?.as_number(node.span.clone())?;
+                let end = self.interpret(end, ctx)?.as_number(node.span.clone())?;
 
                 if end < start {
                     return Err(RuntimeError::new(
@@ -185,7 +191,7 @@ impl Interpreter {
 
                 let it_manifold =
                     if manifold_children.len() == 1 {
-                        ItManifold::Some(&manifold_children.first().unwrap())
+                        ItManifold::Some(manifold_children.first().unwrap())
                     } else {
                         ItManifold::UnsupportedNotOneChild
                     };
@@ -260,7 +266,7 @@ impl Interpreter {
             },
             
             NodeKind::Binding { name, value } => {
-                let value = self.interpret(&value, ctx)?;
+                let value = self.interpret(value, ctx)?;
 
                 // As far as a language user is concerned, bindings and arguments existing in the
                 // same scope
@@ -282,7 +288,7 @@ impl Interpreter {
             },
 
             NodeKind::FieldAccess { value, field } => {
-                let value = self.interpret(&value, ctx)?;
+                let value = self.interpret(value, ctx)?;
 
                 if let Some(field_value) = value.get_field(field, &self.manifold_table) {
                     Ok(field_value)
@@ -295,8 +301,8 @@ impl Interpreter {
             },
 
             NodeKind::BinaryOperation { left, right, op } => {
-                let left = self.interpret(&left, ctx)?.as_number(node.span.clone())?;
-                let right = self.interpret(&right, ctx)?.as_number(node.span.clone())?;
+                let left = self.interpret(left, ctx)?.as_number(node.span.clone())?;
+                let right = self.interpret(right, ctx)?.as_number(node.span.clone())?;
 
                 let result = match op {
                     BinaryOperator::Add => left + right,
@@ -309,7 +315,7 @@ impl Interpreter {
             },
 
             NodeKind::UnaryNegate(value) => {
-                let value = self.interpret(&value, ctx)?.as_number(node.span.clone())?;
+                let value = self.interpret(value, ctx)?.as_number(node.span.clone())?;
                 Ok(Object::Number(-value))
             },
 
@@ -324,7 +330,7 @@ impl Interpreter {
             },
 
             NodeKind::ForLoop { loop_variable, loop_source, body } => {
-                let loop_source = self.interpret(&loop_source, ctx)?.into_vector(node.span.clone())?;
+                let loop_source = self.interpret(loop_source, ctx)?.into_vector(node.span.clone())?;
 
                 let mut result_objects = vec![];
                 for item in loop_source {
@@ -440,7 +446,7 @@ impl Interpreter {
             }
 
             "difference" => {
-                if children.len() == 0 {
+                if children.is_empty() {
                     // TODO: should create an empty manifold, but don't know what disposition it should have
                     todo!()
                 }
@@ -453,7 +459,7 @@ impl Interpreter {
                 let (subtrahend, _) = self.union_child_geometry(children, span)?;
                 let subtrahend = subtrahend.unwrap_manifold();
 
-                Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend)))
+                Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(subtrahend)))
             }
 
             "linear_extrude" => {
@@ -568,6 +574,12 @@ impl Interpreter {
 
         arguments.try_into()
             .map_err(|_| RuntimeError::new(RuntimeErrorKind::IncorrectArity { expected: N..=N, actual }, span.clone()))
+    }
+}
+
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

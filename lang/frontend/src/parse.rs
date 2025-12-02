@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, iter::Peekable, rc::Rc};
+use std::{error::Error, fmt::Display, iter::Peekable, rc::Rc, slice};
 
 use miette::Diagnostic;
 
@@ -254,18 +254,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let (mut expr, mut terminator) = self.parse_expression()?;
 
         // Parse assignment
-        if let Node { span, kind: NodeKind::Identifier(id) } = &expr {
-            if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
-                self.tokens.next().unwrap(); // discard equals
+        if let Node { span, kind: NodeKind::Identifier(id) } = &expr
+            && self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals)
+        {
+            self.tokens.next().unwrap(); // discard equals
 
-                let (value, value_terminator) = self.parse_expression()?;
-                let binding_span = span.union_with(&[value.span.clone()]);
-                expr = Node::new(NodeKind::Binding {
-                    name: id.clone(),
-                    value: Box::new(value),
-                }, binding_span);
-                terminator = value_terminator;
-            }
+            let (value, value_terminator) = self.parse_expression()?;
+            let binding_span = span.union_with(slice::from_ref(&value.span));
+            expr = Node::new(NodeKind::Binding {
+                name: id.clone(),
+                value: Box::new(value),
+            }, binding_span);
+            terminator = value_terminator;
         }
 
         match terminator {
@@ -298,7 +298,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             };
 
             let (right, right_terminator) = self.parse_mul_div_expression()?;
-            let span = left.span.union_with(&[right.span.clone()]);
+            let span = left.span.union_with(slice::from_ref(&right.span));
             left = Node::new(
                 NodeKind::BinaryOperation {
                     left: Box::new(left),
@@ -325,7 +325,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             };
 
             let (right, right_terminator) = self.parse_bottom_expression()?;
-            let span = left.span.union_with(&[right.span.clone()]);
+            let span = left.span.union_with(slice::from_ref(&right.span));
             left = Node::new(
                 NodeKind::BinaryOperation {
                     left: Box::new(left),
@@ -357,7 +357,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     // Likewise, if there's a brace, we parsed a operator with multiple children.
                     if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::Identifier(_))) {
                         let (child, operator) = self.parse_expression()?;
-                        return Some((
+                        Some((
                             Node::new(NodeKind::OperatorApplication {
                                 name: id,
                                 arguments,
@@ -367,7 +367,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         ))
                     } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
                         let children = self.parse_braced_statement_list()?;
-                        return Some((
+                        Some((
                             Node::new(NodeKind::OperatorApplication {
                                 name: id,
                                 arguments,
@@ -416,7 +416,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 match self.tokens.peek() {
                     // Single-item vector
                     Some(Token { kind: TokenKind::RBracket, span: end_span }) => {
-                        let vector_span = span.union_with(&[end_span.clone()]);
+                        let vector_span = span.union_with(slice::from_ref(end_span));
                         Some((Node::new(NodeKind::VectorLiteral(vec![first_item]), vector_span), StatementTerminator::NeedsSemicolon))
                     },
 
@@ -427,7 +427,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         let (mut items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket)?;
                         items.insert(0, first_item);
 
-                        let vector_span = span.union_with(&[end_span.clone()]);
+                        let vector_span = span.union_with(slice::from_ref(&end_span));
                         Some((Node::new(NodeKind::VectorLiteral(items), vector_span), StatementTerminator::NeedsSemicolon))
                     },
 
@@ -438,7 +438,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         let (end_item, _) = self.parse_expression()?;
                         self.expect(TokenKind::RBracket)?;
 
-                        let vector_span = span.union_with(&[end_item.span.clone()]);
+                        let vector_span = span.union_with(slice::from_ref(&end_item.span));
                         Some((
                             Node::new(NodeKind::VectorRangeLiteral {
                                 start: Box::new(first_item),
@@ -470,7 +470,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             TokenKind::Minus => {
                 let (value, terminator) = self.parse_bottom_expression()?;
-                let span = span.union_with(&[value.span.clone()]);
+                let span = span.union_with(slice::from_ref(&value.span));
                 Some((
                     Node::new(NodeKind::UnaryNegate(Box::new(value)), span),
                     terminator,
@@ -577,10 +577,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             } else if self.tokens.peek().is_none() {
                 self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
                 break
-            } else {
-                if let Some(stmt) = self.parse_statement() {
-                    stmts.push(stmt);
-                }
+            } else if let Some(stmt) = self.parse_statement() {
+                stmts.push(stmt);
             }
         }
 

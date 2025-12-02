@@ -1,4 +1,4 @@
-use std::{alloc::{Layout, alloc}, ffi::CString, os::raw::c_void, path::Path};
+use std::os::raw::c_void;
 
 use crate::{Vec3, manifold::Manifold, raw};
 
@@ -77,9 +77,9 @@ impl MeshGL {
         unsafe {
             let length = raw::manifold_meshgl_vert_properties_length(self.ptr);
             let mut data = Vec::<f32>::with_capacity(length);
-            data.set_len(length);
 
             raw::manifold_meshgl_vert_properties(data.as_mut_ptr() as *mut c_void, self.ptr);
+            data.set_len(length);
 
             data
         }
@@ -102,9 +102,9 @@ impl MeshGL {
             // We'll convert to usize later for convenience of indexing.
             let length = self.count_triangles() * 3;
             let mut data = Vec::<u32>::with_capacity(length);
-            data.set_len(length);
 
             raw::manifold_meshgl_tri_verts(data.as_mut_ptr() as *mut c_void, self.ptr);
+            data.set_len(length);
 
             data.into_iter().map(|i| i as usize).collect()
         }

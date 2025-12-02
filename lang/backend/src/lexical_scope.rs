@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use yascad_frontend::{Node, NodeKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, object::Object};
+use crate::object::Object;
 
 #[derive(Debug)]
 pub struct LexicalScope {
