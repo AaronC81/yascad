@@ -247,7 +247,7 @@ impl Interpreter {
 
                     Ok(self.create_object_from_new_geometry(geom, disp))
                 } else {
-                    let manifold = self.apply_builtin_operator(name, &arguments, manifold_children, node.span.clone())?;
+                    let manifold = self.apply_builtin_operator(name, arguments, manifold_children, node.span.clone())?;
                     Ok(Object::Manifold(manifold))
                 }
             }
@@ -256,7 +256,7 @@ impl Interpreter {
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg, ctx))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.call_builtin_function(name, &arguments, ctx.operator_children, node.span.clone())
+                self.call_builtin_function(name, arguments, ctx.operator_children, node.span.clone())
             },
             
             NodeKind::Binding { name, value } => {
@@ -354,7 +354,7 @@ impl Interpreter {
             .collect()
     }
 
-    fn call_builtin_function(&mut self, name: &str, arguments: &[Object], operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
+    fn call_builtin_function(&mut self, name: &str, arguments: Vec<Object>, operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
         match name {
             "cube" => {
                 let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
@@ -363,15 +363,9 @@ impl Interpreter {
 
             "cylinder" => {
                 // TODO: needs to support diameters or cone forms
-                if arguments.len() != 2 {
-                    return Err(RuntimeError::new(
-                        RuntimeErrorKind::IncorrectArity { expected: 2..=2, actual: arguments.len() },
-                        span,
-                    ));
-                };
-
-                let height = arguments[0].as_number(span.clone())?;
-                let radius = arguments[1].as_number(span.clone())?;
+                let [height, radius] = Self::accept_arguments(arguments, &span)?;
+                let height = height.as_number(span.clone())?;
+                let radius = radius.as_number(span.clone())?;
 
                 Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cylinder(radius, height, self.circle_segments, false), GeometryDisposition::Physical)))
             }
@@ -382,14 +376,8 @@ impl Interpreter {
             }
 
             "copy" => {
-                if arguments.len() != 1 {
-                    return Err(RuntimeError::new(
-                        RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
-                        span,
-                    ));
-                }
-
-                let manifold_index = arguments[0].clone().into_manifold(span)?;
+                let [manifold_index] = Self::accept_arguments(arguments, &span)?;
+                let manifold_index = manifold_index.into_manifold(span)?;
                 let manifold = self.manifold_table.get(&manifold_index);
 
                 // Even if it's being copied in a virtual disposition, we can make it physical here.
@@ -430,7 +418,7 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_operator(&mut self, name: &str, arguments: &[Object], mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+    fn apply_builtin_operator(&mut self, name: &str, arguments: Vec<Object>, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
         match name {
             "translate" => {
                 match self.union_child_geometry(children, span.clone())? {
@@ -469,13 +457,8 @@ impl Interpreter {
             }
 
             "linear_extrude" => {
-                if arguments.len() != 1 {
-                    return Err(RuntimeError::new(
-                        RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
-                        span,
-                    ));
-                }
-                let height = arguments[0].as_number(span.clone())?;
+                let [height] = Self::accept_arguments(arguments, &span)?;
+                let height = height.as_number(span.clone())?;
 
                 let (geom, disp) = self.union_child_geometry(children, span)?;
                 let cross_section = geom.unwrap_cross_section();
@@ -495,15 +478,10 @@ impl Interpreter {
         }
     }
 
-    fn get_vec3_from_arguments(arguments: &[Object], span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
-        if arguments.len() != 1 {
-            return Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
-                span,
-            ));
-        }
+    fn get_vec3_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
+        let [argument] = Self::accept_arguments(arguments, &span)?;
 
-        let vector = arguments[0].clone().into_vector(span.clone())?;
+        let vector = argument.clone().into_vector(span.clone())?;
         if vector.len() != 2 && vector.len() != 3 {
             return Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectVectorLength { expected: 2..=3, actual: vector.len() },
@@ -524,15 +502,10 @@ impl Interpreter {
         Ok((x, y, z))
     }
 
-    fn get_vec2_from_arguments(arguments: &[Object], span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
-        if arguments.len() != 1 {
-            return Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: arguments.len() },
-                span,
-            ));
-        }
+    fn get_vec2_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
+        let [argument] = Self::accept_arguments(arguments, &span)?;
 
-        let vector = arguments[0].clone().into_vector(span.clone())?;
+        let vector = argument.clone().into_vector(span.clone())?;
         if vector.len() != 2 {
             return Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectVectorLength { expected: 2..=2, actual: vector.len() },
@@ -613,6 +586,19 @@ impl Interpreter {
             GeometryTableEntry::CrossSection(cross_section) => 
                 Object::CrossSection(self.manifold_table.add_cross_section(cross_section, disposition)),
         }
+    }
+
+    /// Accept the given number of arguments, unpacking them into an array for convenient
+    /// destructuring.
+    /// 
+    /// Returns a [`RuntimeErrorKind::IncorrectArity`] if the number of arguments is not expected.
+    /// 
+    /// TODO: Need a form for variable numbers of arguments
+    fn accept_arguments<const N: usize>(arguments: Vec<Object>, span: &InputSourceSpan) -> Result<[Object; N], RuntimeError> {
+        let actual = arguments.len();
+
+        arguments.try_into()
+            .map_err(|_| RuntimeError::new(RuntimeErrorKind::IncorrectArity { expected: N..=N, actual }, span.clone()))
     }
 }
 
