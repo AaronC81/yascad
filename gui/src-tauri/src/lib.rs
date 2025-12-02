@@ -8,7 +8,9 @@ use yascad_lang::{InputSource, LangError, build_model};
 fn render_preview(code: &str) -> Result<String, String> {
     let source = InputSource::new_string(code.to_owned());
 
-    match build_model(source) {
+    let res = build_model(source);
+    println!("{res:?}");
+    match res {
         Ok(model) => {
             // TODO: use unique temp file paths (multiple instances, cross-platform)
             let temp_path = PathBuf::from("/tmp/yascad_model.stl");
@@ -22,7 +24,7 @@ fn render_preview(code: &str) -> Result<String, String> {
 
         Err(LangError::Tokenize(errors)) => Err(flatten_miette_errors(errors)),
         Err(LangError::Parser(errors)) => Err(flatten_miette_errors(errors)),
-        Err(LangError::Runtime(error)) => Err(format!("{error}")),
+        Err(LangError::Runtime(error)) => Err(flatten_miette_errors(vec![error])),
     }
 }
 

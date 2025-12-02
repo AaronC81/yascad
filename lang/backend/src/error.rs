@@ -1,10 +1,14 @@
 use std::{error::Error, fmt::Display, ops::RangeInclusive};
 
+use miette::Diagnostic;
 use yascad_frontend::InputSourceSpan;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Diagnostic)]
 pub struct RuntimeError {
     pub kind: RuntimeErrorKind,
+
+    #[source_code]
+    #[label]
     pub span: InputSourceSpan,
 }
 

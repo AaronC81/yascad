@@ -30,10 +30,7 @@ fn main() {
 
         Err(LangError::Tokenize(errors)) => abort_with_errors(errors),
         Err(LangError::Parser(errors)) => abort_with_errors(errors),
-        Err(LangError::Runtime(error)) => {
-            println!("{error}");
-            return;
-        }
+        Err(LangError::Runtime(error)) => abort_with_errors(vec![error]),
     }
 }
 
