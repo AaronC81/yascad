@@ -5,6 +5,9 @@ use crate::{RuntimeError, RuntimeErrorKind, object::Object};
 mod operators;
 pub use operators::*;
 
+mod modules;
+pub use modules::*;
+
 /// Accept the given number of arguments, unpacking them into an array for convenient
 /// destructuring.
 /// 

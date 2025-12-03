@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use manifold_rs::{CrossSection, Manifold};
+use manifold_rs::Manifold;
 use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
 use crate::{RuntimeError, RuntimeErrorKind, builtin, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
@@ -270,7 +270,7 @@ impl Interpreter {
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg, ctx))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.call_builtin_function(name, arguments, ctx.operator_children, node.span.clone())
+                self.call_builtin_module(name, arguments, ctx.operator_children, node.span.clone())
             },
             
             NodeKind::Binding { name, value } => {
@@ -368,67 +368,10 @@ impl Interpreter {
             .collect()
     }
 
-    fn call_builtin_function(&mut self, name: &str, arguments: Vec<Object>, operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-        match name {
-            "cube" => {
-                let (x, y, z) = builtin::accept_vec3_argument(arguments, span)?;
-                Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cube(x, y, z, false), GeometryDisposition::Physical)))
-            }
-
-            "cylinder" => {
-                // TODO: needs to support diameters or cone forms
-                let [height, radius] = builtin::accept_arguments(arguments, &span)?;
-                let height = height.as_number(span.clone())?;
-                let radius = radius.as_number(span.clone())?;
-
-                Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cylinder(radius, height, self.circle_segments, false), GeometryDisposition::Physical)))
-            }
-
-            "square" => {
-                let (x, y) = builtin::accept_vec2_argument(arguments, span)?;
-                Ok(Object::Manifold(self.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
-            }
-
-            "copy" => {
-                let [manifold_index] = builtin::accept_arguments(arguments, &span)?;
-                let manifold_index = manifold_index.into_manifold(span)?;
-                let manifold = self.manifold_table.get(&manifold_index);
-
-                // Even if it's being copied in a virtual disposition, we can make it physical here.
-                // The `buffer` will "downgrade" it later.
-                let copied_manifold = self.manifold_table.add(manifold.clone(), GeometryDisposition::Physical);
-                Ok(Object::Manifold(copied_manifold))
-            }
-
-            // TODO: specific children selectors
-            "children" => {
-                let Some(children) = operator_children
-                else {
-                    return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
-                };
-
-                // The children are temporary virtual manifolds.
-                // Copy them as physical and then build a union of all of the copies.
-                let copied_children = children.iter()
-                    .map(|child| {
-                        let m = self.manifold_table.get(child).clone();
-                        self.manifold_table.add(m, GeometryDisposition::Physical)
-                    })
-                    .collect::<Vec<_>>();
-
-                let (geom, disp) = self.manifold_table.remove_many_into_union(copied_children, span)?;
-                Ok(self.manifold_table.add_into_object(geom, disp))
-            }
-
-            "__debug" => {
-                println!("{arguments:#?}");
-                Ok(Object::Null)
-            }
-
-            _ => Err(RuntimeError::new(
-                RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
-                span,
-            ))
+    fn call_builtin_module(&mut self, name: &str, arguments: Vec<Object>, operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
+        match builtin::get_builtin_module(name) {
+            Some(op) => op(self, arguments, operator_children, span),
+            None => Err(RuntimeError::new(RuntimeErrorKind::UndefinedIdentifier(name.to_owned()), span)),
         }
     }
 
