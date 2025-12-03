@@ -87,15 +87,23 @@ impl Interpreter {
     }
 
     pub fn build_top_level_manifold(&self) -> Manifold {
+        // Height which 2D geometry is extruded to, for 3D display
+        const CROSS_SECTION_EXTRUDE_HEIGHT: f64 = 0.01;
+
         let mut result = Manifold::new();
 
-        // TODO: top-level 2D should be allowed, and mixture of 2D and 3D should be an error.
         for (entry, disposition) in self.manifold_table.iter_geometry() {
-            if *disposition == GeometryDisposition::Physical {
-                let GeometryTableEntry::Manifold(manifold) = entry
-                else { panic!("top-level 2D geometry is not yet supported") };
+            if *disposition != GeometryDisposition::Physical {
+                continue;
+            }
 
-                result = result.union(manifold);
+            match entry {
+                GeometryTableEntry::Manifold(manifold) => {
+                    result = result.union(manifold);
+                },
+                GeometryTableEntry::CrossSection(cross_section) => {
+                    result = result.union(&Manifold::extrude(cross_section.polygons(), CROSS_SECTION_EXTRUDE_HEIGHT));
+                }
             }
         }
 
