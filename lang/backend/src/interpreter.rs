@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use manifold_rs::Manifold;
 use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, builtin, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -121,18 +121,17 @@ impl Interpreter {
     pub fn interpret(&mut self, node: &Node, ctx: &ExecutionContext) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
-                // Arguments have highest priority - they probably need to be less separated in
-                // future, but, eh
-                if let Some(object) = ctx.arguments.get(id) {
-                    return Ok(object.clone());
-                }
-
-                ctx.lexical_scope.borrow()
-                    .get_binding(id)
-                    .ok_or_else(|| RuntimeError::new(
-                        RuntimeErrorKind::UndefinedIdentifier(id.to_owned()),
+                match self.get_existing_name(id, ctx, node.span.clone())? {
+                    NameDefinition::Argument(obj) | NameDefinition::Binding(obj) => Ok(obj),
+                    
+                    def => Err(RuntimeError::new(
+                        RuntimeErrorKind::InvalidIdentifier {
+                            id: id.to_owned(),
+                            kind: def.describe_kind(),
+                        },
                         node.span.clone(),
-                    ))
+                    )),
+                }
             },
 
             NodeKind::NumberLiteral(num) => {
@@ -219,50 +218,63 @@ impl Interpreter {
                 // Built-in operators can do their own manifold table manipulation, so these are
                 // directly given the physical manifold indexes. They can do whatever they like with
                 // them.
-                if let Some(user_operator) = ctx.lexical_scope.borrow().get_operator(name) {
-                    let NodeKind::OperatorDefinition { body, parameters, name: _ } = &user_operator.kind.clone()
-                    else { unreachable!() };
+                match self.get_existing_name(name, ctx, node.span.clone())? {
+                    NameDefinition::UserDefinedOperator(user_operator) => {
+                        let NodeKind::OperatorDefinition { body, parameters, name: _ } = &user_operator.kind.clone()
+                        else { unreachable!() };
 
-                    // Validate number of arguments so forthcoming `zip` is definitely balanced
-                    if arguments.len() != parameters.len() {
-                        return Err(RuntimeError::new(
-                            RuntimeErrorKind::IncorrectArity {
-                                expected: parameters.len()..=parameters.len(),
-                                actual: arguments.len(),
-                            },
-                            node.span.clone(),
-                        ));
+                        // Validate number of arguments so forthcoming `zip` is definitely balanced
+                        if arguments.len() != parameters.len() {
+                            return Err(RuntimeError::new(
+                                RuntimeErrorKind::IncorrectArity {
+                                    expected: parameters.len()..=parameters.len(),
+                                    actual: arguments.len(),
+                                },
+                                node.span.clone(),
+                            ));
+                        }
+
+                        // Convert to hash, that's what the context expects
+                        let arguments = arguments.into_iter()
+                            .zip(parameters)
+                            .map(|(arg, param)| (param.to_owned(), arg))
+                            .collect::<HashMap<_, _>>();
+
+                        let temporary_virtual_manifolds = manifold_children.into_iter()
+                            .map(|index| {
+                                let (m, _) = self.manifold_table.remove(index);
+                                self.manifold_table.add(m, GeometryDisposition::Virtual)
+                            })
+                            .collect::<Vec<_>>();
+
+                        let result_objects = self.interpret_body(body, &ctx
+                            .with_it_manifold(ItManifold::None)
+                            .with_operator_children(Some(&temporary_virtual_manifolds))
+                            .with_deeper_scope()
+                            .with_arguments(arguments))?;
+                        let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
+                        let (geom, disp) = self.manifold_table.remove_many_into_union(result_manifolds, node.span.clone())?;
+
+                        for index in temporary_virtual_manifolds {
+                            self.manifold_table.remove(index);
+                        }
+
+                        Ok(self.manifold_table.add_into_object(geom, disp))
                     }
 
-                    // Convert to hash, that's what the context expects
-                    let arguments = arguments.into_iter()
-                        .zip(parameters)
-                        .map(|(arg, param)| (param.to_owned(), arg))
-                        .collect::<HashMap<_, _>>();
-
-                    let temporary_virtual_manifolds = manifold_children.into_iter()
-                        .map(|index| {
-                            let (m, _) = self.manifold_table.remove(index);
-                            self.manifold_table.add(m, GeometryDisposition::Virtual)
-                        })
-                        .collect::<Vec<_>>();
-
-                    let result_objects = self.interpret_body(body, &ctx
-                        .with_it_manifold(ItManifold::None)
-                        .with_operator_children(Some(&temporary_virtual_manifolds))
-                        .with_deeper_scope()
-                        .with_arguments(arguments))?;
-                    let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
-                    let (geom, disp) = self.manifold_table.remove_many_into_union(result_manifolds, node.span.clone())?;
-
-                    for index in temporary_virtual_manifolds {
-                        self.manifold_table.remove(index);
+                    NameDefinition::BuiltinOperator(op) => {
+                        // TODO: built-in operators are assumed to return manifolds which isn't correct
+                        let manifold = op(self, arguments, manifold_children, node.span.clone())?;
+                        Ok(Object::Manifold(manifold))
                     }
 
-                    Ok(self.manifold_table.add_into_object(geom, disp))
-                } else {
-                    let manifold = self.apply_builtin_operator(name, arguments, manifold_children, node.span.clone())?;
-                    Ok(Object::Manifold(manifold))
+                    def => Err(RuntimeError::new(
+                        RuntimeErrorKind::InvalidIdentifier {
+                            id: name.to_owned(),
+                            kind: def.describe_kind(),
+                        },
+                        node.span.clone(),
+                    )),
                 }
             }
 
@@ -270,28 +282,25 @@ impl Interpreter {
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg, ctx))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.call_builtin_module(name, arguments, ctx.operator_children, node.span.clone())
+
+                match self.get_existing_name(name, ctx, node.span.clone())? {
+                    NameDefinition::BuiltinModule(module) =>
+                        module(self, arguments, ctx.operator_children, node.span.clone()),
+
+                    def => Err(RuntimeError::new(
+                        RuntimeErrorKind::InvalidIdentifier {
+                            id: name.to_owned(),
+                            kind: def.describe_kind(),
+                        },
+                        node.span.clone(),
+                    )),
+                }
             },
             
             NodeKind::Binding { name, value } => {
                 let value = self.interpret(value, ctx)?;
 
-                // As far as a language user is concerned, bindings and arguments existing in the
-                // same scope
-                if ctx.arguments.contains_key(name) {
-                    return Err(RuntimeError::new(
-                        RuntimeErrorKind::DuplicateBinding(name.to_owned()),
-                        node.span.clone(),
-                    ))
-                }
-
-                if !ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), value.clone()) {
-                    return Err(RuntimeError::new(
-                        RuntimeErrorKind::DuplicateBinding(name.to_owned()),
-                        node.span.clone(),
-                    ))
-                }
-
+                self.add_name(name, NameDefinition::Binding(value.clone()), &ctx, node.span.clone())?;
                 Ok(value)
             },
 
@@ -328,12 +337,7 @@ impl Interpreter {
             },
 
             NodeKind::OperatorDefinition { name, .. } => {
-                if !ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), node.clone()) {
-                    return Err(RuntimeError::new(
-                        RuntimeErrorKind::DuplicateBinding(name.to_owned()),
-                        node.span.clone(),
-                    ))
-                }
+                self.add_name(name, NameDefinition::UserDefinedOperator(node.clone()), &ctx, node.span.clone())?;
                 Ok(Object::Null)
             },
 
@@ -343,12 +347,7 @@ impl Interpreter {
                 let mut result_objects = vec![];
                 for item in loop_source {
                     let ctx = ctx.with_deeper_scope();
-                    if !ctx.lexical_scope.borrow_mut().add_binding(loop_variable.clone(), item) {
-                        return Err(RuntimeError::new(
-                            RuntimeErrorKind::DuplicateBinding(loop_variable.to_owned()),
-                            node.span.clone(),
-                        ))
-                    }
+                    self.add_name(&loop_variable, NameDefinition::Binding(item), &ctx, node.span.clone())?;
                     
                     result_objects.extend(self.interpret_body(body, &ctx)?)
                 }
@@ -366,20 +365,6 @@ impl Interpreter {
         nodes.iter()
             .map(|node| self.interpret(node, ctx))
             .collect()
-    }
-
-    fn call_builtin_module(&mut self, name: &str, arguments: Vec<Object>, operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-        match builtin::get_builtin_module(name) {
-            Some(op) => op(self, arguments, operator_children, span),
-            None => Err(RuntimeError::new(RuntimeErrorKind::UndefinedIdentifier(name.to_owned()), span)),
-        }
-    }
-
-    fn apply_builtin_operator(&mut self, name: &str, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
-        match builtin::get_builtin_operator(name) {
-            Some(op) => op(self, arguments, children, span),
-            None => Err(RuntimeError::new(RuntimeErrorKind::UndefinedIdentifier(name.to_owned()), span)),
-        }
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
@@ -402,6 +387,63 @@ impl Interpreter {
             .filter(|index| self.manifold_table.get_disposition(index) == GeometryDisposition::Physical)
             .collect()
     }
+
+    /// Look up a name.
+    fn get_name(&self, name: &str, ctx: &ExecutionContext) -> Option<NameDefinition> {
+        if let Some(object) = ctx.lexical_scope.borrow().get_binding(name) {
+            return Some(NameDefinition::Binding(object))
+        }
+
+        if let Some(object) = ctx.arguments.get(name) {
+            return Some(NameDefinition::Argument(object.clone()));
+        }
+
+        if let Some(module) = builtin::get_builtin_module(name) {
+            return Some(NameDefinition::BuiltinModule(module))
+        }
+
+        if let Some(operator) = builtin::get_builtin_operator(name) {
+            return Some(NameDefinition::BuiltinOperator(operator))
+        }
+
+        // User-defined operator
+        if let Some(operator) = ctx.lexical_scope.borrow().get_operator(name) {
+            return Some(NameDefinition::UserDefinedOperator(operator))
+        }
+
+        None
+    }
+
+    /// Like [`Self::get_name`] but returns a [`RuntimeErrorKind::UndefinedIdentifier`] if the name
+    /// is not defined.
+    fn get_existing_name(&self, name: &str, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<NameDefinition, RuntimeError> {
+        self.get_name(name, ctx).ok_or_else(||
+            RuntimeError::new(RuntimeErrorKind::UndefinedIdentifier(name.to_owned()), span))
+    }
+
+    /// Define a new name.
+    /// 
+    /// Returns an error if the name is already defined.
+    fn add_name(&self, name: &str, def: NameDefinition, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<(), RuntimeError> {
+        if self.get_name(name, ctx).is_some() {
+            return Err(RuntimeError::new(RuntimeErrorKind::DuplicateName(name.to_owned()), span))
+        }
+
+        match def {
+            NameDefinition::Binding(object) => {
+                ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), object);
+            }
+            NameDefinition::UserDefinedOperator(node) => {
+                ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), node);
+            }
+
+            NameDefinition::Argument(_)
+            | NameDefinition::BuiltinModule(_)
+            | NameDefinition::BuiltinOperator(_) => panic!("cannot add new definition of this type"),
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for Interpreter {
@@ -421,4 +463,28 @@ pub enum ItManifold<'a> {
 
     /// `it` is not valid here.
     None,
+}
+
+/// Describes the name sourced from somewhere in the interpreter.
+#[derive(Clone)]
+pub enum NameDefinition {
+    Binding(Object),
+    Argument(Object),
+
+    BuiltinModule(ModuleDefinition),
+
+    BuiltinOperator(OperatorDefinition),
+    UserDefinedOperator(Node),
+}
+
+impl NameDefinition {
+    pub fn describe_kind(&self) -> String {
+        match self {
+            NameDefinition::Binding(_) => "binding",
+            NameDefinition::Argument(_) => "parameter",
+            NameDefinition::BuiltinModule(_) => "built-in module",
+            NameDefinition::BuiltinOperator(_) => "built-in operator",
+            NameDefinition::UserDefinedOperator(_) => "user-defined operator",
+        }.to_string()
+    }
 }

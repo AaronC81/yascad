@@ -30,13 +30,13 @@ impl Error for RuntimeError {}
 pub enum RuntimeErrorKind {
     IncorrectType { expected: String, actual: String },
     UndefinedIdentifier(String),
+    InvalidIdentifier { id: String, kind: String },
     UndefinedField { ty: String, field: String },
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
     IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
     MixedGeometryDisposition,
     MixedGeometryDimensions,
-    DuplicateBinding(String),
-    DuplicateOperator(String),
+    DuplicateName(String),
     ItReferenceInvalid,
     ItReferenceUnsupportedNotOneChild,
     ChildrenExpected,
@@ -50,6 +50,7 @@ impl Display for RuntimeErrorKind {
         match self {
             RuntimeErrorKind::IncorrectType { expected, actual } => write!(f, "type error - expected {expected}, got {actual}"),
             RuntimeErrorKind::UndefinedIdentifier(id) => write!(f, "undefined identifier \"{id}\""),
+            RuntimeErrorKind::InvalidIdentifier { id, kind } => write!(f, "identifier \"{id}\" is a {kind}, which cannot be used here"),
             RuntimeErrorKind::UndefinedField { ty, field } => write!(f, "{ty} object has no field \"{field}\""),
             RuntimeErrorKind::IncorrectArity { expected, actual } => {
                 write!(f, "incorrect number of arguments - expected ")?;
@@ -65,8 +66,7 @@ impl Display for RuntimeErrorKind {
             },
             RuntimeErrorKind::MixedGeometryDisposition => write!(f, "this operation tried to mix geometries of different dispositions"),
             RuntimeErrorKind::MixedGeometryDimensions => write!(f, "this operation tried to mix 2D and 3D geometry"),
-            RuntimeErrorKind::DuplicateBinding(id) => write!(f, "binding named \"{id}\" is already defined"),
-            RuntimeErrorKind::DuplicateOperator(id) => write!(f, "operator named \"{id}\" is already defined"),
+            RuntimeErrorKind::DuplicateName(id) => write!(f, "name \"{id}\" is already defined"),
             RuntimeErrorKind::ItReferenceInvalid => write!(f, "cannot use `it` outside of operator target arguments"),
             RuntimeErrorKind::ItReferenceUnsupportedNotOneChild => write!(f, "`it` is not currently supported without exactly one operator child - consider using `union()` first"),
             RuntimeErrorKind::ChildrenInvalid => write!(f, "cannot use `children` outside of operator body"),

@@ -40,14 +40,16 @@ impl LexicalScope {
         }
     }
 
-    #[must_use = "return value indicates whether a binding was created successfully"]
-    pub fn add_binding(&mut self, name: String, value: Object) -> bool {
+    /// Add a new value binding to this scope.
+    /// 
+    /// Panics if a binding with this name already exists. It's the caller's responsibility to check
+    /// for conflicts, as it may have names beyond the lexical scope which we don't know about.
+    pub fn add_binding(&mut self, name: String, value: Object) {
         if self.get_binding(&name).is_some() {
-            return false
+            panic!("binding {name} already exists");
         }
 
         self.bindings.insert(name, value);
-        true
     }
 
     pub fn get_operator(&self, name: &str) -> Option<Node> {
@@ -62,17 +64,21 @@ impl LexicalScope {
         }
     }
 
-    #[must_use = "return value indicates whether an operator was created successfully"]
-    pub fn add_operator(&mut self, name: String, definition: Node) -> bool {
+    /// Add a new operator definition to this scope.
+    /// 
+    /// Panics if an operator with this name already exists. It's the caller's responsibility to
+    /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
+    /// 
+    /// Also panics if the definition is not of variant [`NodeKind::OperatorDefinition`].
+    pub fn add_operator(&mut self, name: String, definition: Node) {
         if !matches!(definition.kind, NodeKind::OperatorDefinition { .. }) {
             panic!("lexical scope operators must have NodeKind::OperatorDefinition")
         }
 
         if self.get_operator(&name).is_some() {
-            return false
+            panic!("operator {name} already exists");
         }
 
         self.operators.insert(name, definition);
-        true
     }
 }
