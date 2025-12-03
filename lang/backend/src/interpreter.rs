@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use manifold_rs::{CrossSection, Manifold};
 use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, builtin, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -371,13 +371,13 @@ impl Interpreter {
     fn call_builtin_function(&mut self, name: &str, arguments: Vec<Object>, operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
         match name {
             "cube" => {
-                let (x, y, z) = Self::get_vec3_from_arguments(arguments, span)?;
+                let (x, y, z) = builtin::accept_vec3_argument(arguments, span)?;
                 Ok(Object::Manifold(self.manifold_table.add_manifold(Manifold::cube(x, y, z, false), GeometryDisposition::Physical)))
             }
 
             "cylinder" => {
                 // TODO: needs to support diameters or cone forms
-                let [height, radius] = Self::accept_arguments(arguments, &span)?;
+                let [height, radius] = builtin::accept_arguments(arguments, &span)?;
                 let height = height.as_number(span.clone())?;
                 let radius = radius.as_number(span.clone())?;
 
@@ -385,12 +385,12 @@ impl Interpreter {
             }
 
             "square" => {
-                let (x, y) = Self::get_vec2_from_arguments(arguments, span)?;
+                let (x, y) = builtin::accept_vec2_argument(arguments, span)?;
                 Ok(Object::Manifold(self.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
             }
 
             "copy" => {
-                let [manifold_index] = Self::accept_arguments(arguments, &span)?;
+                let [manifold_index] = builtin::accept_arguments(arguments, &span)?;
                 let manifold_index = manifold_index.into_manifold(span)?;
                 let manifold = self.manifold_table.get(&manifold_index);
 
@@ -437,12 +437,12 @@ impl Interpreter {
             "translate" => {
                 match self.manifold_table.remove_many_into_union(children, span.clone())? {
                     (GeometryTableEntry::Manifold(manifold), d) => {
-                        let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
+                        let (x, y, z) = builtin::accept_vec3_argument(arguments, span.clone())?;
                         Ok(self.manifold_table.add_manifold(manifold.translate(x, y, z), d))
                     },
 
                     (GeometryTableEntry::CrossSection(cross_section), d) => {
-                        let (x, y) = Self::get_vec2_from_arguments(arguments, span.clone())?;
+                        let (x, y) = builtin::accept_vec2_argument(arguments, span.clone())?;
                         Ok(self.manifold_table.add_cross_section(cross_section.translate(x, y), d))
                     },
                 }
@@ -480,7 +480,7 @@ impl Interpreter {
             }
 
             "linear_extrude" => {
-                let [height] = Self::accept_arguments(arguments, &span)?;
+                let [height] = builtin::accept_arguments(arguments, &span)?;
                 let height = height.as_number(span.clone())?;
 
                 let (geom, disp) = self.manifold_table.remove_many_into_union(children, span.clone())?;
@@ -502,16 +502,7 @@ impl Interpreter {
         }
     }
 
-    fn get_vec3_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
-        let [argument] = Self::accept_arguments(arguments, &span)?;
-        argument.into_3d_vector(span)
-    }
-
-    fn get_vec2_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
-        let [argument] = Self::accept_arguments(arguments, &span)?;
-        argument.into_2d_vector(span)
-    }
-
+    
     /// Given a list of objects, filter it down to only manifolds, and return them.
     fn filter_objects_to_manifolds(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
         objects.into_iter()
@@ -531,19 +522,6 @@ impl Interpreter {
             .into_iter()
             .filter(|index| self.manifold_table.get_disposition(index) == GeometryDisposition::Physical)
             .collect()
-    }
-
-    /// Accept the given number of arguments, unpacking them into an array for convenient
-    /// destructuring.
-    /// 
-    /// Returns a [`RuntimeErrorKind::IncorrectArity`] if the number of arguments is not expected.
-    /// 
-    /// TODO: Need a form for variable numbers of arguments
-    fn accept_arguments<const N: usize>(arguments: Vec<Object>, span: &InputSourceSpan) -> Result<[Object; N], RuntimeError> {
-        let actual = arguments.len();
-
-        arguments.try_into()
-            .map_err(|_| RuntimeError::new(RuntimeErrorKind::IncorrectArity { expected: N..=N, actual }, span.clone()))
     }
 }
 
