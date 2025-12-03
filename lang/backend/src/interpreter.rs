@@ -263,9 +263,8 @@ impl Interpreter {
                     }
 
                     NameDefinition::BuiltinOperator(op) => {
-                        // TODO: built-in operators are assumed to return manifolds which isn't correct
-                        let manifold = op(self, arguments, manifold_children, node.span.clone())?;
-                        Ok(Object::Manifold(manifold))
+                        let (geom, disp) = op(self, arguments, manifold_children, node.span.clone())?;
+                        Ok(self.manifold_table.add_into_object(geom, disp))
                     }
 
                     def => Err(RuntimeError::new(

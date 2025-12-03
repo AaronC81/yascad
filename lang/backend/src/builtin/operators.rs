@@ -3,49 +3,47 @@ use yascad_frontend::InputSourceSpan;
 
 use crate::{Interpreter, RuntimeError, RuntimeErrorKind, builtin::{accept_arguments, accept_vec2_argument, accept_vec3_argument, reject_arguments}, geometry_table::{GeometryDisposition, GeometryTableEntry, GeometryTableIndex}, object::Object};
 
-pub type OperatorDefinition = &'static dyn Fn(&mut Interpreter, Vec<Object>, Vec<GeometryTableIndex>, InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError>;
+pub type OperatorDefinition = &'static dyn Fn(&mut Interpreter, Vec<Object>, Vec<GeometryTableIndex>, InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError>;
 
-fn translate(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+fn translate(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
     match interpreter.manifold_table.remove_many_into_union(children, span.clone())? {
         (GeometryTableEntry::Manifold(manifold), d) => {
             let (x, y, z) = accept_vec3_argument(arguments, span.clone())?;
-            Ok(interpreter.manifold_table.add_manifold(manifold.translate(x, y, z), d))
+            Ok((GeometryTableEntry::Manifold(manifold.translate(x, y, z)), d))
         },
 
         (GeometryTableEntry::CrossSection(cross_section), d) => {
             let (x, y) = accept_vec2_argument(arguments, span.clone())?;
-            Ok(interpreter.manifold_table.add_cross_section(cross_section.translate(x, y), d))
+            Ok((GeometryTableEntry::CrossSection(cross_section.translate(x, y)), d))
         },
     }
 }
 
-fn union(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+fn union(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
     reject_arguments(arguments, &span)?;
-
-    let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span)?;
-    Ok(interpreter.manifold_table.add(geom, disp))
+    interpreter.manifold_table.remove_many_into_union(children, span)
 }
 
-fn difference(interpreter: &mut Interpreter, arguments: Vec<Object>, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+fn difference(interpreter: &mut Interpreter, arguments: Vec<Object>, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
     reject_arguments(arguments, &span)?;
 
     if children.is_empty() {
         return Err(RuntimeError::new(RuntimeErrorKind::ChildrenExpected, span))
     }
 
-    let minuend = children.remove(0);
+    let (minuend, disp) = interpreter.manifold_table.remove(children.remove(0));
     if children.is_empty() {
-        return Ok(minuend);
+        return Ok((minuend, disp))
     }
     
     let (subtrahend, _) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
-    match (interpreter.manifold_table.get(&minuend), subtrahend) {
-        (GeometryTableEntry::Manifold(_), GeometryTableEntry::Manifold(subtrahend_manifold)) => {
-            Ok(interpreter.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend_manifold)))
+    match (minuend, subtrahend) {
+        (GeometryTableEntry::Manifold(minuend_manifold), GeometryTableEntry::Manifold(subtrahend_manifold)) => {
+            Ok((GeometryTableEntry::Manifold(minuend_manifold.difference(&subtrahend_manifold)), disp))
         },
 
-        (GeometryTableEntry::CrossSection(_), GeometryTableEntry::CrossSection(subtrahend_cross_section)) => {
-            Ok(interpreter.manifold_table.map_cross_section(minuend, |m| m.difference(&subtrahend_cross_section)))
+        (GeometryTableEntry::CrossSection(minuend_cross_section), GeometryTableEntry::CrossSection(subtrahend_cross_section)) => {
+            Ok((GeometryTableEntry::CrossSection(minuend_cross_section.difference(&subtrahend_cross_section)), disp))
         },
 
         _ => {
@@ -54,7 +52,7 @@ fn difference(interpreter: &mut Interpreter, arguments: Vec<Object>, mut childre
     }
 }
 
-fn linear_extrude(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+fn linear_extrude(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
     let [height] = accept_arguments(arguments, &span)?;
     let height = height.as_number(span.clone())?;
 
@@ -62,14 +60,14 @@ fn linear_extrude(interpreter: &mut Interpreter, arguments: Vec<Object>, childre
     let GeometryTableEntry::CrossSection(cross_section) = geom
     else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
 
-    Ok(interpreter.manifold_table.add_manifold(Manifold::extrude(cross_section.polygons(), height), disp))
+    Ok((GeometryTableEntry::Manifold(Manifold::extrude(cross_section.polygons(), height)), disp))
 }
 
-fn buffer(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+fn buffer(interpreter: &mut Interpreter, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
     reject_arguments(arguments, &span)?;
 
     let (geom, _) = interpreter.manifold_table.remove_many_into_union(children, span)?;
-    Ok(interpreter.manifold_table.add(geom, GeometryDisposition::Virtual))
+    Ok((geom, GeometryDisposition::Virtual))
 }
 
 /// Get the implementation for a specific built-in operator.

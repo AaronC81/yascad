@@ -1,0 +1,170 @@
+solid YASCADText
+facet normal -1 0 0
+  outer loop
+    vertex 0 0 0
+    vertex 0 0 0.01
+    vertex 0 10 0.01
+  endloop
+endfacet
+facet normal -1 0 -0
+  outer loop
+    vertex 0 0 0
+    vertex 0 10 0.01
+    vertex 0 10 0
+  endloop
+endfacet
+facet normal -1 0 0
+  outer loop
+    vertex 10 20 0
+    vertex 10 20 0.01
+    vertex 10 30 0.01
+  endloop
+endfacet
+facet normal -1 0 -0
+  outer loop
+    vertex 10 20 0
+    vertex 10 30 0.01
+    vertex 10 30 0
+  endloop
+endfacet
+facet normal 0 -1 0
+  outer loop
+    vertex 0 0 0
+    vertex 10 0 0
+    vertex 0 0 0.01
+  endloop
+endfacet
+facet normal -0 -1 -0
+  outer loop
+    vertex 10 0 0
+    vertex 10 0 0.01
+    vertex 0 0 0.01
+  endloop
+endfacet
+facet normal 0 -1 0
+  outer loop
+    vertex 10 20 0
+    vertex 20 20 0
+    vertex 10 20 0.01
+  endloop
+endfacet
+facet normal -0 -1 -0
+  outer loop
+    vertex 20 20 0
+    vertex 20 20 0.01
+    vertex 10 20 0.01
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 0 0 0
+    vertex 0 10 0
+    vertex 10 0 0
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 0 10 0
+    vertex 10 10 0
+    vertex 10 0 0
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 10 20 0
+    vertex 10 30 0
+    vertex 20 20 0
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 10 30 0
+    vertex 20 30 0
+    vertex 20 20 0
+  endloop
+endfacet
+facet normal 0 0 1
+  outer loop
+    vertex 0 0 0.01
+    vertex 10 0 0.01
+    vertex 0 10 0.01
+  endloop
+endfacet
+facet normal 0 -0 1
+  outer loop
+    vertex 0 10 0.01
+    vertex 10 0 0.01
+    vertex 10 10 0.01
+  endloop
+endfacet
+facet normal 0 0 1
+  outer loop
+    vertex 10 20 0.01
+    vertex 20 20 0.01
+    vertex 10 30 0.01
+  endloop
+endfacet
+facet normal 0 -0 1
+  outer loop
+    vertex 10 30 0.01
+    vertex 20 20 0.01
+    vertex 20 30 0.01
+  endloop
+endfacet
+facet normal -0 1 0
+  outer loop
+    vertex 0 10 0
+    vertex 0 10 0.01
+    vertex 10 10 0.01
+  endloop
+endfacet
+facet normal 0 1 0
+  outer loop
+    vertex 0 10 0
+    vertex 10 10 0.01
+    vertex 10 10 0
+  endloop
+endfacet
+facet normal -0 1 0
+  outer loop
+    vertex 10 30 0
+    vertex 10 30 0.01
+    vertex 20 30 0.01
+  endloop
+endfacet
+facet normal 0 1 0
+  outer loop
+    vertex 10 30 0
+    vertex 20 30 0.01
+    vertex 20 30 0
+  endloop
+endfacet
+facet normal 1 0 0
+  outer loop
+    vertex 10 0 0
+    vertex 10 10 0
+    vertex 10 0 0.01
+  endloop
+endfacet
+facet normal 1 0 0
+  outer loop
+    vertex 10 10 0
+    vertex 10 10 0.01
+    vertex 10 0 0.01
+  endloop
+endfacet
+facet normal 1 0 0
+  outer loop
+    vertex 20 20 0
+    vertex 20 30 0
+    vertex 20 20 0.01
+  endloop
+endfacet
+facet normal 1 0 0
+  outer loop
+    vertex 20 30 0
+    vertex 20 30 0.01
+    vertex 20 20 0.01
+  endloop
+endfacet
+endsolid YASCADText

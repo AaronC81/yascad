@@ -45,6 +45,13 @@ impl GeometryTableEntry {
             _ => panic!("expected manifold, got: {self:?}")
         }
     }
+
+    pub fn unwrap_cross_section(&self) -> &CrossSection {
+        match self {
+            GeometryTableEntry::CrossSection(cross_section) => cross_section,
+            _ => panic!("expected cross-section, got: {self:?}")
+        }
+    }
 }
 
 #[derive(Debug)]
