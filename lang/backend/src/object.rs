@@ -1,4 +1,4 @@
-use manifold_rs::Vec3;
+use manifold_rs::{Vec2, Vec3};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryTable, GeometryTableIndex}};
@@ -48,8 +48,16 @@ impl Object {
                 }
             },
 
-            // TODO: fields on cross-sections
-            Object::CrossSection(_) => todo!(),
+            Object::CrossSection(index) => {
+                let bounding_rect = manifold_table.get(index).unwrap_cross_section().bounding_rectangle();
+
+                match field {
+                    "origin" | "min_point" => Some(bounding_rect.min_point().into()),
+                    "max_point" => Some(bounding_rect.max_point().into()),
+                    "size" => Some(bounding_rect.size().into()),
+                    _ => None,
+                }
+            },
         }
     }
 
@@ -141,5 +149,11 @@ impl Object {
 impl From<Vec3<f64>> for Object {
     fn from(value: Vec3<f64>) -> Self {
         Self::Vector(vec![Self::Number(value.x), Self::Number(value.y), Self::Number(value.z)])
+    }
+}
+
+impl From<Vec2<f64>> for Object {
+    fn from(value: Vec2<f64>) -> Self {
+        Self::Vector(vec![Self::Number(value.x), Self::Number(value.y)])
     }
 }
