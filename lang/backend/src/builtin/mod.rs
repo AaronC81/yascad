@@ -2,6 +2,9 @@ use yascad_frontend::InputSourceSpan;
 
 use crate::{RuntimeError, RuntimeErrorKind, object::Object};
 
+mod operators;
+pub use operators::*;
+
 /// Accept the given number of arguments, unpacking them into an array for convenient
 /// destructuring.
 /// 
@@ -13,6 +16,11 @@ pub(crate) fn accept_arguments<const N: usize>(arguments: Vec<Object>, span: &In
 
     arguments.try_into()
         .map_err(|_| RuntimeError::new(RuntimeErrorKind::IncorrectArity { expected: N..=N, actual }, span.clone()))
+}
+
+/// Returns a [`RuntimeErrorKind::IncorrectArity`] if any arguments are supplied.
+pub(crate) fn reject_arguments(arguments: Vec<Object>, span: &InputSourceSpan) -> Result<(), RuntimeError> {
+    accept_arguments::<0>(arguments, span).map(|_| ())
 }
 
 /// Accept a single argument which is a 3D vector.

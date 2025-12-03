@@ -1,3 +1,5 @@
+#![feature(type_alias_impl_trait)]
+
 mod object;
 mod geometry_table;
 mod lexical_scope;

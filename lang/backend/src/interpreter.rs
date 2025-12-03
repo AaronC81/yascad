@@ -72,8 +72,8 @@ impl Default for ExecutionContext<'_> {
 }
 
 pub struct Interpreter {
-    manifold_table: GeometryTable,
-    circle_segments: i32,
+    pub(crate) manifold_table: GeometryTable,
+    pub(crate) circle_segments: i32,
 }
 
 impl Interpreter {
@@ -432,77 +432,13 @@ impl Interpreter {
         }
     }
 
-    fn apply_builtin_operator(&mut self, name: &str, arguments: Vec<Object>, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
-        match name {
-            "translate" => {
-                match self.manifold_table.remove_many_into_union(children, span.clone())? {
-                    (GeometryTableEntry::Manifold(manifold), d) => {
-                        let (x, y, z) = builtin::accept_vec3_argument(arguments, span.clone())?;
-                        Ok(self.manifold_table.add_manifold(manifold.translate(x, y, z), d))
-                    },
-
-                    (GeometryTableEntry::CrossSection(cross_section), d) => {
-                        let (x, y) = builtin::accept_vec2_argument(arguments, span.clone())?;
-                        Ok(self.manifold_table.add_cross_section(cross_section.translate(x, y), d))
-                    },
-                }
-            }
-
-            "union" => {
-                let (geom, disp) = self.manifold_table.remove_many_into_union(children, span)?;
-                Ok(self.manifold_table.add(geom, disp))
-            }
-
-            "difference" => {
-                if children.is_empty() {
-                    return Err(RuntimeError::new(RuntimeErrorKind::ChildrenExpected, span))
-                }
-            
-                let minuend = children.remove(0);
-                if children.is_empty() {
-                    return Ok(minuend);
-                }
-                
-                let (subtrahend, _) = self.manifold_table.remove_many_into_union(children, span.clone())?;
-                match (self.manifold_table.get(&minuend), subtrahend) {
-                    (GeometryTableEntry::Manifold(_), GeometryTableEntry::Manifold(subtrahend_manifold)) => {
-                        Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend_manifold)))
-                    },
-
-                    (GeometryTableEntry::CrossSection(_), GeometryTableEntry::CrossSection(subtrahend_cross_section)) => {
-                        Ok(self.manifold_table.map_cross_section(minuend, |m| m.difference(&subtrahend_cross_section)))
-                    },
-
-                    _ => {
-                        Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span))
-                    }
-                }
-            }
-
-            "linear_extrude" => {
-                let [height] = builtin::accept_arguments(arguments, &span)?;
-                let height = height.as_number(span.clone())?;
-
-                let (geom, disp) = self.manifold_table.remove_many_into_union(children, span.clone())?;
-                let GeometryTableEntry::CrossSection(cross_section) = geom
-                else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
-
-                Ok(self.manifold_table.add_manifold(Manifold::extrude(cross_section.polygons(), height), disp))
-            }
-
-            "buffer" => {
-                let (geom, _) = self.manifold_table.remove_many_into_union(children, span)?;
-                Ok(self.manifold_table.add(geom, GeometryDisposition::Virtual))
-            }
-
-            _ => Err(RuntimeError::new(
-                RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
-                span,
-            ))
+    fn apply_builtin_operator(&mut self, name: &str, arguments: Vec<Object>, children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
+        match builtin::get_builtin_operator(name) {
+            Some(op) => op(self, arguments, children, span),
+            None => Err(RuntimeError::new(RuntimeErrorKind::UndefinedIdentifier(name.to_owned()), span)),
         }
     }
 
-    
     /// Given a list of objects, filter it down to only manifolds, and return them.
     fn filter_objects_to_manifolds(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
         objects.into_iter()
