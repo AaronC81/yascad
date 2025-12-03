@@ -9,6 +9,9 @@ pub use cross_section::*;
 mod polygons;
 pub use polygons::*;
 
+mod rectangle;
+pub use rectangle::*;
+
 mod meshgl;
 pub use meshgl::*;
 

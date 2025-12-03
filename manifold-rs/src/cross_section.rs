@@ -1,6 +1,6 @@
 use std::{fmt::Debug, os::raw::c_void};
 
-use crate::{Polygons, raw};
+use crate::{Polygons, Rectangle, raw};
 
 pub struct CrossSection {
     pub(crate) ptr: *mut raw::ManifoldCrossSection,
@@ -90,6 +90,15 @@ impl CrossSection {
             let poly = Polygons::alloc();
             raw::manifold_cross_section_to_polygons(poly.ptr as *mut c_void, self.ptr);
             poly
+        }
+    }
+
+    /// Get the bounding rectangle for this cross section.
+    pub fn bounding_rectangle(&self) -> Rectangle {
+        unsafe {
+            let rect = Rectangle::alloc();
+            raw::manifold_cross_section_bounds(rect.ptr as *mut c_void, self.ptr);
+            rect
         }
     }
 }
