@@ -253,13 +253,13 @@ impl Interpreter {
                         .with_deeper_scope()
                         .with_arguments(arguments))?;
                     let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
-                    let (geom, disp) = self.union_child_geometry(result_manifolds, node.span.clone())?;
+                    let (geom, disp) = self.manifold_table.remove_many_into_union(result_manifolds, node.span.clone())?;
 
                     for index in temporary_virtual_manifolds {
                         self.manifold_table.remove(index);
                     }
 
-                    Ok(self.create_object_from_new_geometry(geom, disp))
+                    Ok(self.manifold_table.add_into_object(geom, disp))
                 } else {
                     let manifold = self.apply_builtin_operator(name, arguments, manifold_children, node.span.clone())?;
                     Ok(Object::Manifold(manifold))
@@ -353,11 +353,11 @@ impl Interpreter {
                     result_objects.extend(self.interpret_body(body, &ctx)?)
                 }
 
-                let (geom, disp) = self.union_child_geometry(
+                let (geom, disp) = self.manifold_table.remove_many_into_union(
                     self.filter_objects_to_physical_geometries(result_objects),
                     node.span.clone(),
                 )?;
-                Ok(self.create_object_from_new_geometry(geom, disp))
+                Ok(self.manifold_table.add_into_object(geom, disp))
             }
         }
     }
@@ -416,8 +416,8 @@ impl Interpreter {
                     })
                     .collect::<Vec<_>>();
 
-                let (geom, disp) = self.union_child_geometry(copied_children, span)?;
-                Ok(self.create_object_from_new_geometry(geom, disp))
+                let (geom, disp) = self.manifold_table.remove_many_into_union(copied_children, span)?;
+                Ok(self.manifold_table.add_into_object(geom, disp))
             }
 
             "__debug" => {
@@ -435,7 +435,7 @@ impl Interpreter {
     fn apply_builtin_operator(&mut self, name: &str, arguments: Vec<Object>, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<GeometryTableIndex, RuntimeError> {
         match name {
             "translate" => {
-                match self.union_child_geometry(children, span.clone())? {
+                match self.manifold_table.remove_many_into_union(children, span.clone())? {
                     (GeometryTableEntry::Manifold(manifold), d) => {
                         let (x, y, z) = Self::get_vec3_from_arguments(arguments, span.clone())?;
                         Ok(self.manifold_table.add_manifold(manifold.translate(x, y, z), d))
@@ -449,7 +449,7 @@ impl Interpreter {
             }
 
             "union" => {
-                let (geom, disp) = self.union_child_geometry(children, span)?;
+                let (geom, disp) = self.manifold_table.remove_many_into_union(children, span)?;
                 Ok(self.manifold_table.add(geom, disp))
             }
 
@@ -463,7 +463,7 @@ impl Interpreter {
                     return Ok(minuend);
                 }
                 
-                let (subtrahend, _) = self.union_child_geometry(children, span.clone())?;
+                let (subtrahend, _) = self.manifold_table.remove_many_into_union(children, span.clone())?;
                 match (self.manifold_table.get(&minuend), subtrahend) {
                     (GeometryTableEntry::Manifold(_), GeometryTableEntry::Manifold(subtrahend_manifold)) => {
                         Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend_manifold)))
@@ -483,7 +483,7 @@ impl Interpreter {
                 let [height] = Self::accept_arguments(arguments, &span)?;
                 let height = height.as_number(span.clone())?;
 
-                let (geom, disp) = self.union_child_geometry(children, span.clone())?;
+                let (geom, disp) = self.manifold_table.remove_many_into_union(children, span.clone())?;
                 let GeometryTableEntry::CrossSection(cross_section) = geom
                 else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
 
@@ -491,7 +491,7 @@ impl Interpreter {
             }
 
             "buffer" => {
-                let (geom, _) = self.union_child_geometry(children, span)?;
+                let (geom, _) = self.manifold_table.remove_many_into_union(children, span)?;
                 Ok(self.manifold_table.add(geom, GeometryDisposition::Virtual))
             }
 
@@ -510,45 +510,6 @@ impl Interpreter {
     fn get_vec2_from_arguments(arguments: Vec<Object>, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
         let [argument] = Self::accept_arguments(arguments, &span)?;
         argument.into_2d_vector(span)
-    }
-
-    fn union_child_geometry(&mut self, mut children: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
-        if children.len() == 1 {
-            return Ok(self.manifold_table.remove(children.remove(0)));
-        }
-
-        let (all_entries, all_dispositions): (Vec<_>, Vec<_>) = children.into_iter()
-            .map(|child| self.manifold_table.remove(child))
-            .unzip();
-
-        let disposition = GeometryDisposition::flatten(&all_dispositions, span.clone())?;
-        
-        let (first, rest) = all_entries.split_first().unwrap();
-    
-        match first {
-            GeometryTableEntry::Manifold(first_manifold) => {
-                let mut result = first_manifold.clone();
-                for entry in rest {
-                    let GeometryTableEntry::Manifold(manifold) = entry
-                    else { return Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span)) };
-
-                    result = result.union(manifold);
-                }
-                
-                Ok((GeometryTableEntry::Manifold(result), disposition))
-            },
-            GeometryTableEntry::CrossSection(first_cross_section) => {
-                let mut result = first_cross_section.clone();
-                for entry in rest {
-                    let GeometryTableEntry::CrossSection(cross_section) = entry
-                    else { return Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span)) };
-
-                    result = result.union(cross_section);
-                }
-                
-                Ok((GeometryTableEntry::CrossSection(result), disposition))
-            },
-        }        
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
@@ -570,15 +531,6 @@ impl Interpreter {
             .into_iter()
             .filter(|index| self.manifold_table.get_disposition(index) == GeometryDisposition::Physical)
             .collect()
-    }
-
-    fn create_object_from_new_geometry(&mut self, geometry: GeometryTableEntry, disposition: GeometryDisposition) -> Object {
-        match geometry {
-            GeometryTableEntry::Manifold(manifold) =>
-                Object::Manifold(self.manifold_table.add_manifold(manifold, disposition)),
-            GeometryTableEntry::CrossSection(cross_section) => 
-                Object::CrossSection(self.manifold_table.add_cross_section(cross_section, disposition)),
-        }
     }
 
     /// Accept the given number of arguments, unpacking them into an array for convenient
