@@ -39,8 +39,10 @@ pub enum RuntimeErrorKind {
     DuplicateOperator(String),
     ItReferenceInvalid,
     ItReferenceUnsupportedNotOneChild,
+    ChildrenExpected,
     ChildrenInvalid,
     FlippedRange,
+    Requires2DGeometry,
 }
 
 impl Display for RuntimeErrorKind {
@@ -68,7 +70,9 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::ItReferenceInvalid => write!(f, "cannot use `it` outside of operator target arguments"),
             RuntimeErrorKind::ItReferenceUnsupportedNotOneChild => write!(f, "`it` is not currently supported without exactly one operator child - consider using `union()` first"),
             RuntimeErrorKind::ChildrenInvalid => write!(f, "cannot use `children` outside of operator body"),
+            RuntimeErrorKind::ChildrenExpected => write!(f, "this operation requires at least one child"),
             RuntimeErrorKind::FlippedRange => write!(f, "end of range is lower than start"),
+            RuntimeErrorKind::Requires2DGeometry => write!(f, "this operation requires 2D geometry, but 3D was provided"),
         }
     }
 }

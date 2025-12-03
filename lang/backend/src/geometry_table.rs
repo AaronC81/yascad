@@ -45,13 +45,6 @@ impl GeometryTableEntry {
             _ => panic!("expected manifold, got: {self:?}")
         }
     }
-
-    pub fn unwrap_cross_section(&self) -> &CrossSection {
-        match self {
-            GeometryTableEntry::CrossSection(cross_section) => cross_section,
-            _ => panic!("expected cross-section, got: {self:?}")
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -104,6 +97,15 @@ impl GeometryTable {
             match entry {
                 GeometryTableEntry::Manifold(manifold) => GeometryTableEntry::Manifold(func(manifold)),
                 _ => panic!("`map_manifold` called on non-manifold geometry")
+            }
+        )
+    }
+
+    pub fn map_cross_section(&mut self, index: GeometryTableIndex, func: impl FnOnce(CrossSection) -> CrossSection) -> GeometryTableIndex {
+        self.map(index, |entry|
+            match entry {
+                GeometryTableEntry::CrossSection(cross_section) => GeometryTableEntry::CrossSection(func(cross_section)),
+                _ => panic!("`map_cross_section` called on non-cross-section geometry")
             }
         )
     }

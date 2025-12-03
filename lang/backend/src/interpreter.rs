@@ -447,27 +447,37 @@ impl Interpreter {
 
             "difference" => {
                 if children.is_empty() {
-                    // TODO: should create an empty manifold, but don't know what disposition it should have
-                    todo!()
+                    return Err(RuntimeError::new(RuntimeErrorKind::ChildrenExpected, span))
                 }
             
                 let minuend = children.remove(0);
                 if children.is_empty() {
                     return Ok(minuend);
                 }
+                
+                let (subtrahend, _) = self.union_child_geometry(children, span.clone())?;
+                match (self.manifold_table.get(&minuend), subtrahend) {
+                    (GeometryTableEntry::Manifold(_), GeometryTableEntry::Manifold(subtrahend_manifold)) => {
+                        Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(&subtrahend_manifold)))
+                    },
 
-                let (subtrahend, _) = self.union_child_geometry(children, span)?;
-                let subtrahend = subtrahend.unwrap_manifold();
+                    (GeometryTableEntry::CrossSection(_), GeometryTableEntry::CrossSection(subtrahend_cross_section)) => {
+                        Ok(self.manifold_table.map_cross_section(minuend, |m| m.difference(&subtrahend_cross_section)))
+                    },
 
-                Ok(self.manifold_table.map_manifold(minuend, |m| m.difference(subtrahend)))
+                    _ => {
+                        Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span))
+                    }
+                }
             }
 
             "linear_extrude" => {
                 let [height] = Self::accept_arguments(arguments, &span)?;
                 let height = height.as_number(span.clone())?;
 
-                let (geom, disp) = self.union_child_geometry(children, span)?;
-                let cross_section = geom.unwrap_cross_section();
+                let (geom, disp) = self.union_child_geometry(children, span.clone())?;
+                let GeometryTableEntry::CrossSection(cross_section) = geom
+                else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
 
                 Ok(self.manifold_table.add_manifold(Manifold::extrude(cross_section.polygons(), height), disp))
             }
