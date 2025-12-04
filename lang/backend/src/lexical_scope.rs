@@ -8,6 +8,7 @@ use crate::object::Object;
 pub struct LexicalScope {
     bindings: HashMap<String, Object>,
     operators: HashMap<String, Node>, // Always `Node::OperatorDefinition`
+    modules: HashMap<String, Node>, // Always `Node::ModuleDefinition`
     pub parent: Option<Rc<RefCell<LexicalScope>>>,
 }
 
@@ -16,6 +17,7 @@ impl LexicalScope {
         Self {
             bindings: HashMap::new(),
             operators: HashMap::new(),
+            modules: HashMap::new(),
             parent: None,
         }
     }
@@ -24,6 +26,7 @@ impl LexicalScope {
         Self {
             bindings: HashMap::new(),
             operators: HashMap::new(),
+            modules: HashMap::new(),
             parent: Some(parent),
         }
     }
@@ -64,6 +67,18 @@ impl LexicalScope {
         }
     }
 
+    pub fn get_module(&self, name: &str) -> Option<Node> {
+        if let Some(node) = self.modules.get(name) {
+            return Some(node.clone());
+        }
+
+        if let Some(parent) = self.parent.as_ref() {
+            parent.borrow().get_module(name)
+        } else {
+            None
+        }
+    }
+
     /// Add a new operator definition to this scope.
     /// 
     /// Panics if an operator with this name already exists. It's the caller's responsibility to
@@ -80,5 +95,23 @@ impl LexicalScope {
         }
 
         self.operators.insert(name, definition);
+    }
+
+    /// Add a new operator definition to this scope.
+    /// 
+    /// Panics if an operator with this name already exists. It's the caller's responsibility to
+    /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
+    /// 
+    /// Also panics if the definition is not of variant [`NodeKind::ModuleDefinition`].
+    pub fn add_module(&mut self, name: String, definition: Node) {
+        if !matches!(definition.kind, NodeKind::ModuleDefinition { .. }) {
+            panic!("lexical scope modules must have NodeKind::ModuleDefinition")
+        }
+
+        if self.get_module(&name).is_some() {
+            panic!("module {name} already exists");
+        }
+
+        self.modules.insert(name, definition);
     }
 }

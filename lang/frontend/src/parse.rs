@@ -62,6 +62,11 @@ pub enum NodeKind {
         parameters: Vec<String>, // TODO: optional parameters
         body: Vec<Node>,
     },
+    ModuleDefinition {
+        name: String,
+        parameters: Vec<String>, // TODO: optional parameters
+        body: Vec<Node>,
+    },
 
     ForLoop {
         loop_variable: String,
@@ -167,43 +172,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_statement(&mut self) -> Option<Node> {
         // Try parse operator definition
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwOperator) {
-            let Token { span: start_span, .. } = self.tokens.next().unwrap();
-            
-            let Some(name_token) = self.tokens.next()
-            else {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
-                return None;
-            };
-
-            let TokenKind::Identifier(name) = &name_token.kind
-            else {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(name_token.kind), name_token.span));
-                return None;
-            };
-
-            // Parse parameters
-            self.expect(TokenKind::LParen)?;
-            let (parameters, _) = self.parse_bracketed_comma_separated_list(TokenKind::RParen)?;
-            let parameters = parameters.into_iter()
-                .map(|node| match node.kind {
-                    NodeKind::Identifier(id) => id,
-                    _ => {
-                        self.errors.push(ParseError::new(ParseErrorKind::InvalidOperatorParameter, node.span));
-                        "DUMMY".to_owned()
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            // Parse body
-            let body = self.parse_braced_statement_list()?;
-            let body_spans = body
-                .iter()
-                .map(|item| item.span.clone())
-                .collect::<Vec<_>>();
-
-            let span = start_span.union_with(&body_spans);
+            let (name, parameters, body, span) = self.parse_definition()?;
             return Some(Node::new(
                 NodeKind::OperatorDefinition {
+                    name: name.to_owned(),
+                    parameters,
+                    body,
+                },
+                span,
+            ))
+        }
+
+        // Try parse module definition
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwModule) {
+            let (name, parameters, body, span) = self.parse_definition()?;
+            return Some(Node::new(
+                NodeKind::ModuleDefinition {
                     name: name.to_owned(),
                     parameters,
                     body,
@@ -492,6 +476,57 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 None
             }
         }
+    }
+
+    /// Generic parsing logic for the definition of an operator or module.
+    /// 
+    /// Assumes the leading definition keyword has NOT yet been parsed. It'll be popped but not
+    /// validated, just to get its span. It's the caller's responsibility to peek this first to
+    /// figure out the kind of definition.
+    /// 
+    /// Returns, in order:
+    ///   - Name of the definition
+    ///   - List of parameter names
+    ///   - Body
+    ///   - Span of entire definition
+    fn parse_definition(&mut self) -> Option<(String, Vec<String>, Vec<Node>, InputSourceSpan)> {
+        let Token { span: start_span, .. } = self.tokens.next().unwrap();
+
+        let Some(name_token) = self.tokens.next()
+        else {
+            self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+            return None;
+        };
+
+        let TokenKind::Identifier(name) = &name_token.kind
+        else {
+            self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(name_token.kind), name_token.span));
+            return None;
+        };
+
+        // Parse parameters
+        self.expect(TokenKind::LParen)?;
+        let (parameters, _) = self.parse_bracketed_comma_separated_list(TokenKind::RParen)?;
+        let parameters = parameters.into_iter()
+            .map(|node| match node.kind {
+                NodeKind::Identifier(id) => id,
+                _ => {
+                    self.errors.push(ParseError::new(ParseErrorKind::InvalidOperatorParameter, node.span));
+                    "DUMMY".to_owned()
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // Parse body
+        let body = self.parse_braced_statement_list()?;
+        let body_spans = body
+            .iter()
+            .map(|item| item.span.clone())
+            .collect::<Vec<_>>();
+
+        let span = start_span.union_with(&body_spans);
+
+        Some((name.to_owned(), parameters, body, span))
     }
 
     /// If the next tokens are a field access, e.g. `.x.y`, wrap the given node in these accesses.

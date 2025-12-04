@@ -1,0 +1,11 @@
+module custom_cube() {
+    difference() {
+        cube([20, 20, 20]);
+        cube([10, 10, 10]);
+    }
+}
+
+custom_cube();
+
+translate([30, 30, 30])
+custom_cube();

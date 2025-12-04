@@ -223,22 +223,7 @@ impl Interpreter {
                         let NodeKind::OperatorDefinition { body, parameters, name: _ } = &user_operator.kind.clone()
                         else { unreachable!() };
 
-                        // Validate number of arguments so forthcoming `zip` is definitely balanced
-                        if arguments.len() != parameters.len() {
-                            return Err(RuntimeError::new(
-                                RuntimeErrorKind::IncorrectArity {
-                                    expected: parameters.len()..=parameters.len(),
-                                    actual: arguments.len(),
-                                },
-                                node.span.clone(),
-                            ));
-                        }
-
-                        // Convert to hash, that's what the context expects
-                        let arguments = arguments.into_iter()
-                            .zip(parameters)
-                            .map(|(arg, param)| (param.to_owned(), arg))
-                            .collect::<HashMap<_, _>>();
+                        let arguments = Self::match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
 
                         let temporary_virtual_manifolds = manifold_children.into_iter()
                             .map(|index| {
@@ -247,13 +232,9 @@ impl Interpreter {
                             })
                             .collect::<Vec<_>>();
 
-                        let result_objects = self.interpret_body(body, &ctx
-                            .with_it_manifold(ItManifold::None)
-                            .with_operator_children(Some(&temporary_virtual_manifolds))
-                            .with_deeper_scope()
-                            .with_arguments(arguments))?;
-                        let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
-                        let (geom, disp) = self.manifold_table.remove_many_into_union(result_manifolds, node.span.clone())?;
+                        let (geom, disp) = self.interpret_scoped_body_into_geometry(
+                            body, ctx, Some(&temporary_virtual_manifolds), arguments, node.span.clone()
+                        )?;
 
                         for index in temporary_virtual_manifolds {
                             self.manifold_table.remove(index);
@@ -285,6 +266,18 @@ impl Interpreter {
                 match self.get_existing_name(name, ctx, node.span.clone())? {
                     NameDefinition::BuiltinModule(module) =>
                         module(self, arguments, ctx.operator_children, node.span.clone()),
+
+                    NameDefinition::UserDefinedModule(user_module) => {
+                        let NodeKind::ModuleDefinition { body, parameters, name: _ } = &user_module.kind.clone()
+                        else { unreachable!() };
+
+                        let arguments = Self::match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
+                        let (geom, disp) = self.interpret_scoped_body_into_geometry(
+                            body, ctx, None, arguments, node.span.clone()
+                        )?;
+
+                        Ok(self.manifold_table.add_into_object(geom, disp))
+                    }
 
                     def => Err(RuntimeError::new(
                         RuntimeErrorKind::InvalidIdentifier {
@@ -340,6 +333,11 @@ impl Interpreter {
                 Ok(Object::Null)
             },
 
+            NodeKind::ModuleDefinition { name, .. } => {
+                self.add_name(name, NameDefinition::UserDefinedModule(node.clone()), &ctx, node.span.clone())?;
+                Ok(Object::Null)
+            },
+
             NodeKind::ForLoop { loop_variable, loop_source, body } => {
                 let loop_source = self.interpret(loop_source, ctx)?.into_vector(node.span.clone())?;
 
@@ -360,10 +358,31 @@ impl Interpreter {
         }
     }
 
+    /// Execute a list of nodes.
     fn interpret_body(&mut self, nodes: &[Node], ctx: &ExecutionContext) -> Result<Vec<Object>, RuntimeError> {
         nodes.iter()
             .map(|node| self.interpret(node, ctx))
             .collect()
+    }
+
+    /// Execute a list of nodes in a new scope, and collect any geometry that they generate into
+    /// a single union'ed geometry. This is how modules and operators behave.
+    fn interpret_scoped_body_into_geometry(
+        &mut self,
+        nodes: &[Node],
+        ctx: &ExecutionContext,
+        operator_children: Option<&[GeometryTableIndex]>,
+        arguments: HashMap<String, Object>,
+        span: InputSourceSpan,
+    ) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
+        let result_objects = self.interpret_body(nodes, &ctx
+            .with_it_manifold(ItManifold::None)
+            .with_operator_children(operator_children)
+            .with_deeper_scope()
+            .with_arguments(arguments))?;
+        let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
+
+        self.manifold_table.remove_many_into_union(result_manifolds, span)
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
@@ -401,11 +420,14 @@ impl Interpreter {
             return Some(NameDefinition::BuiltinModule(module))
         }
 
+        if let Some(module) = ctx.lexical_scope.borrow().get_module(name) {
+            return Some(NameDefinition::UserDefinedModule(module))
+        }
+
         if let Some(operator) = builtin::get_builtin_operator(name) {
             return Some(NameDefinition::BuiltinOperator(operator))
         }
 
-        // User-defined operator
         if let Some(operator) = ctx.lexical_scope.borrow().get_operator(name) {
             return Some(NameDefinition::UserDefinedOperator(operator))
         }
@@ -435,6 +457,9 @@ impl Interpreter {
             NameDefinition::UserDefinedOperator(node) => {
                 ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), node);
             }
+            NameDefinition::UserDefinedModule(node) => {
+                ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), node);
+            }
 
             NameDefinition::Argument(_)
             | NameDefinition::BuiltinModule(_)
@@ -442,6 +467,27 @@ impl Interpreter {
         }
 
         Ok(())
+    }
+
+    /// Given a list of arguments, and a set of expected parameter names, match the arguments and
+    /// parameters.
+    fn match_arguments_to_parameters(arguments: Vec<Object>, parameters: &[String], span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
+        // Validate number of arguments so forthcoming `zip` is definitely balanced
+        if arguments.len() != parameters.len() {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectArity {
+                    expected: parameters.len()..=parameters.len(),
+                    actual: arguments.len(),
+                },
+                span,
+            ));
+        }
+
+        // Convert to hash
+        Ok(arguments.into_iter()
+            .zip(parameters)
+            .map(|(arg, param)| (param.to_owned(), arg))
+            .collect::<HashMap<_, _>>())
     }
 }
 
@@ -471,6 +517,7 @@ pub enum NameDefinition {
     Argument(Object),
 
     BuiltinModule(ModuleDefinition),
+    UserDefinedModule(Node),
 
     BuiltinOperator(OperatorDefinition),
     UserDefinedOperator(Node),
@@ -482,6 +529,7 @@ impl NameDefinition {
             NameDefinition::Binding(_) => "binding",
             NameDefinition::Argument(_) => "parameter",
             NameDefinition::BuiltinModule(_) => "built-in module",
+            NameDefinition::UserDefinedModule(_) => "user-defined module",
             NameDefinition::BuiltinOperator(_) => "built-in operator",
             NameDefinition::UserDefinedOperator(_) => "user-defined operator",
         }.to_string()
