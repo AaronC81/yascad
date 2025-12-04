@@ -91,6 +91,12 @@ button:active {
   background-color: #e8e8e8;
 }
 
+button:disabled {
+  color: #5e5e5e;
+  border-color: transparent;
+  cursor: default;
+}
+
 input,
 button {
   outline: none;
@@ -117,6 +123,9 @@ button {
   }
   button:active {
     background-color: #0f0f0f69;
+  }
+  button:disabled {
+    color: #5a5a5a;
   }
 }
 

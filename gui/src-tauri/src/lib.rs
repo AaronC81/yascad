@@ -2,7 +2,7 @@ use std::{fs::File, path::PathBuf};
 
 use manifold_rs::ext::MeshGLExt;
 use miette::Diagnostic;
-use yascad_lang::{InputSource, LangError, build_model};
+use yascad_lang::{build_model, InputSource, LangError};
 
 #[tauri::command]
 fn render_preview(code: &str) -> Result<String, String> {
@@ -27,7 +27,8 @@ fn render_preview(code: &str) -> Result<String, String> {
 }
 
 fn flatten_miette_errors<E: Diagnostic + Send + Sync + 'static>(errors: Vec<E>) -> String {
-    errors.into_iter()
+    errors
+        .into_iter()
         .map(|e| format!("{:?}", miette::Report::new(e)))
         .collect::<Vec<_>>()
         .join("\n")
@@ -36,6 +37,8 @@ fn flatten_miette_errors<E: Diagnostic + Send + Sync + 'static>(errors: Vec<E>) 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![render_preview])
         .run(tauri::generate_context!())

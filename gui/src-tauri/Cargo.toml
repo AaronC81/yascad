@@ -26,3 +26,5 @@ miette = { version = "7.6.0", features = ["fancy"] }
 
 yascad-lang = { path = "../../lang/lib" }
 manifold-rs = { path = "../../manifold-rs" }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
