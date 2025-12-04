@@ -12,14 +12,12 @@ fn render_preview(code: &str) -> Result<String, String> {
     println!("{res:?}");
     match res {
         Ok(model) => {
-            // TODO: use unique temp file paths (multiple instances, cross-platform)
-            let temp_path = PathBuf::from("/tmp/yascad_model.stl");
-            
             let stl = model.meshgl().to_stl("YASCADPreview");
-            let mut file = File::create(&temp_path).unwrap();
-            stl.write_text_stl(&mut file).unwrap();
+            let mut stl_bytes = vec![];
+            stl.write_text_stl(&mut stl_bytes).unwrap();
+            let stl_text = String::from_utf8(stl_bytes).unwrap();
 
-            Ok(temp_path.to_string_lossy().to_string())
+            Ok(stl_text)
         }
 
         Err(LangError::Tokenize(errors)) => Err(flatten_miette_errors(errors)),

@@ -1,4 +1,4 @@
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import * as monaco from "monaco-editor";
 import monarchTokenizer from "./monarchTokenizer";
 
@@ -7,16 +7,16 @@ let codeEditor: monaco.editor.IStandaloneCodeEditor;
 
 async function renderPreview() {
   const code = codeEditor.getValue();
-  console.log(code);
 
   const outputMessages = document.getElementById("output-messages")!;
   const outputModel = document.getElementById("output-model")!;
 
   try {
-    const stlPath: string = await invoke("render_preview", { code });
-    document.getElementById("output-messages")!.innerText = `Rendered successfully to ${stlPath}`;
+    const stl: string = await invoke("render_preview", { code });
+    document.getElementById("output-messages")!.innerText = `Rendered successfully`;
 
-    const stlUri = convertFileSrc(stlPath);
+    // TODO: ideally the STL viewer we use can accept text instead
+    const stlDataUri = `data:text/plain;base64,${btoa(stl)}`;
 
     // TODO: Improve viewer:
     //   - Should start at more isometric angle
@@ -33,7 +33,7 @@ async function renderPreview() {
     }
 
     // Append a random number to force reload
-    stlViewer.add_model({ id:1, filename: stlUri + "?" + Math.random() });
+    stlViewer.add_model({ id:1, filename: stlDataUri });
 
     outputModel.style.display = "block";
     outputMessages.style.display = "none";
