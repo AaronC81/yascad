@@ -477,6 +477,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 ))
             }
 
+            TokenKind::LParen => {
+                let (node, _) = self.parse_expression()?;
+                self.expect(TokenKind::RParen)?;
+
+                Some((node, StatementTerminator::NeedsSemicolon))
+            }
+
             _ => {
                 self.errors.push(ParseError::new(
                     ParseErrorKind::UnexpectedToken(kind),
