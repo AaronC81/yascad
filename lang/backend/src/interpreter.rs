@@ -138,6 +138,10 @@ impl Interpreter {
                 Ok(Object::Number(*num))
             },
 
+            NodeKind::BooleanLiteral(bool) => {
+                Ok(Object::Boolean(*bool))
+            }
+
             NodeKind::VectorLiteral(items) => {
                 Ok(Object::Vector(
                     items.iter()

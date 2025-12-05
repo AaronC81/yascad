@@ -27,6 +27,8 @@ pub enum TokenKind {
     KwFor,
     KwIf,
     KwElse,
+    KwTrue,
+    KwFalse,
 
     LParen,
     RParen,
@@ -73,6 +75,8 @@ impl Display for TokenKind {
             TokenKind::KwFor => write!(f, "keyword \"for\""),
             TokenKind::KwIf => write!(f, "keyword \"if\""),
             TokenKind::KwElse => write!(f, "keyword \"else\""),
+            TokenKind::KwTrue => write!(f, "keyword \"true\""),
+            TokenKind::KwFalse => write!(f, "keyword \"false\""),
 
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
@@ -284,6 +288,8 @@ fn lookup_keyword(name: &str) -> Option<TokenKind> {
         "for" => Some(TokenKind::KwFor),
         "if" => Some(TokenKind::KwIf),
         "else" => Some(TokenKind::KwElse),
+        "true" => Some(TokenKind::KwTrue),
+        "false" => Some(TokenKind::KwFalse),
         _ => None,
     }
 }

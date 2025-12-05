@@ -20,6 +20,7 @@ impl Node {
 pub enum NodeKind {
     Identifier(String),
     NumberLiteral(f64),
+    BooleanLiteral(bool),
     VectorLiteral(Vec<Node>),
     VectorRangeLiteral {
         start: Box<Node>,
@@ -513,6 +514,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.expect(TokenKind::RParen)?;
 
                 Some((node, StatementTerminator::NeedsSemicolon))
+            }
+
+            TokenKind::KwTrue => {
+                Some((Node::new(NodeKind::BooleanLiteral(true), span), StatementTerminator::NeedsSemicolon))
+            }
+            TokenKind::KwFalse => {
+                Some((Node::new(NodeKind::BooleanLiteral(false), span), StatementTerminator::NeedsSemicolon))
             }
 
             _ => {
