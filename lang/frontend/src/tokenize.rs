@@ -195,6 +195,21 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 }
             }
 
+            // Block comment
+            '/' if chars.peek().is_some_and(|(_, char)| *char == '*') => {
+                chars.next();
+
+                loop {
+                    let Some((_, this_char)) = chars.next()
+                    else { break };
+
+                    if this_char == '*' && chars.peek().is_some_and(|(_, char)| *char == '/') {
+                        chars.next();
+                        break;
+                    }
+                }
+            }
+
             '(' => {
                 tokens.push(Token::new(TokenKind::LParen, source.span(start_index, 1)))
             },

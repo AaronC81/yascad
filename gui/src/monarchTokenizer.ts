@@ -38,13 +38,15 @@ export default {
     ],
 
     comment: [
-      [/[^\/*]+/, 'comment' ],
-      [/[\/*]/,   'comment' ]
+      [/[^\/*]+/, 'comment'],
+      [/\*\//, 'comment', '@pop'],
+      [/[\/*]/, 'comment']
     ],
 
     whitespace: [
-      [/[ \t\r\n]+/, 'white'],
-      [/\/\/.*$/,    'comment'],
+      [/[ \t\r\n]+/, ''],
+      [/\/\*/, 'comment', '@comment'],
+      [/\/\/.*$/, 'comment'],
     ],
   },
 };
