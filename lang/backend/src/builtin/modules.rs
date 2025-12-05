@@ -1,64 +1,100 @@
+use std::collections::HashMap;
+
 use manifold_rs::{CrossSection, Manifold};
-use yascad_frontend::InputSourceSpan;
+use yascad_frontend::{InputSourceSpan, Parameters};
 
-use crate::{Interpreter, RuntimeError, RuntimeErrorKind, builtin::{accept_arguments, accept_vec2_argument, accept_vec3_argument, reject_arguments}, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
+use crate::{Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
 
-pub type ModuleDefinition = &'static dyn Fn(&mut Interpreter, Vec<Object>, Option<&[GeometryTableIndex]>, InputSourceSpan) -> Result<Object, RuntimeError>;
-
-fn cube(interpreter: &mut Interpreter, arguments: Vec<Object>, _operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-    let (x, y, z) = accept_vec3_argument(arguments, span)?;
-    Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cube(x, y, z, false), GeometryDisposition::Physical)))
+/// Defines the parameters and behaviour of a built-in module.
+/// 
+/// The `action` can assume that all of its arguments have been validated - all of the keys defined
+/// in `parameters` definitely exist.
+#[derive(Clone)]
+pub struct ModuleDefinition {
+    pub parameters: Parameters,
+    pub action: &'static dyn Fn(&mut Interpreter, HashMap<String, Object>, Option<&[GeometryTableIndex]>, InputSourceSpan) -> Result<Object, RuntimeError>,
 }
 
-fn cylinder(interpreter: &mut Interpreter, arguments: Vec<Object>, _operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-    // TODO: needs to support diameters or cone forms
-    let [height, radius] = accept_arguments(arguments, &span)?;
-    let height = height.as_number(span.clone())?;
-    let radius = radius.as_number(span.clone())?;
-
-    Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(radius, height, interpreter.circle_segments, false), GeometryDisposition::Physical)))
+fn cube_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::required(vec!["size".to_owned()]),
+        action: &|interpreter, arguments, _, span| {
+            let (x, y, z) = arguments["size"].as_3d_vector(span)?;
+            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cube(x, y, z, false), GeometryDisposition::Physical)))
+        },
+    }
 }
 
-fn square(interpreter: &mut Interpreter, arguments: Vec<Object>, _operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-    let (x, y) = accept_vec2_argument(arguments, span)?;
-    Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
+fn cylinder_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::required(vec!["h".to_owned(), "r".to_owned()]),
+        action: &|interpreter, arguments, _, span| {
+            // TODO: needs to support diameters or cone forms
+            let height = arguments["h"].as_number(span.clone())?;
+            let radius = arguments["r"].as_number(span.clone())?;
+
+            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(radius, height, interpreter.circle_segments, false), GeometryDisposition::Physical)))
+        },
+    }
 }
 
-fn copy(interpreter: &mut Interpreter, arguments: Vec<Object>, _operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-    let [manifold_index] = accept_arguments(arguments, &span)?;
-    let manifold_index = manifold_index.into_manifold(span)?;
-    let manifold = interpreter.manifold_table.get(&manifold_index);
-
-    // Even if it's being copied in a virtual disposition, we can make it physical here.
-    // The `buffer` will "downgrade" it later.
-    let copied_manifold = interpreter.manifold_table.add(manifold.clone(), GeometryDisposition::Physical);
-    Ok(Object::Manifold(copied_manifold))
+fn square_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::required(vec!["size".to_owned()]),
+        action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
+            let (x, y) = arguments["size"].as_2d_vector(span)?;
+            Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
+        }
+    }
 }
 
-fn children(interpreter: &mut Interpreter, arguments: Vec<Object>, operator_children: Option<&[GeometryTableIndex]>, span: InputSourceSpan) -> Result<Object, RuntimeError> {
-    reject_arguments(arguments, &span)?;
+fn copy_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::required(vec!["source".to_owned()]),
+        action: &|interpreter, arguments, _, span| {
+            let manifold_index = arguments["source"].clone().into_manifold(span)?;
+            let manifold = interpreter.manifold_table.get(&manifold_index);
 
-    let Some(children) = operator_children
-    else {
-        return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
-    };
-
-    // The children are temporary virtual manifolds.
-    // Copy them as physical and then build a union of all of the copies.
-    let copied_children = children.iter()
-        .map(|child| {
-            let m = interpreter.manifold_table.get(child).clone();
-            interpreter.manifold_table.add(m, GeometryDisposition::Physical)
-        })
-        .collect::<Vec<_>>();
-
-    let (geom, disp) = interpreter.manifold_table.remove_many_into_union(copied_children, span)?;
-    Ok(interpreter.manifold_table.add_into_object(geom, disp))
+            // Even if it's being copied in a virtual disposition, we can make it physical here.
+            // The `buffer` will "downgrade" it later.
+            let copied_manifold = interpreter.manifold_table.add(manifold.clone(), GeometryDisposition::Physical);
+            Ok(Object::Manifold(copied_manifold))
+        },
+    }
 }
 
-fn __debug(_interpreter: &mut Interpreter, arguments: Vec<Object>, _operator_children: Option<&[GeometryTableIndex]>, _span: InputSourceSpan) -> Result<Object, RuntimeError> {
-    println!("{arguments:#?}");
-    Ok(Object::Null)
+fn children_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::empty(),
+        action: &|interpreter, _, operator_children, span| {
+            let Some(children) = operator_children
+            else {
+                return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
+            };
+
+            // The children are temporary virtual manifolds.
+            // Copy them as physical and then build a union of all of the copies.
+            let copied_children = children.iter()
+                .map(|child| {
+                    let m = interpreter.manifold_table.get(child).clone();
+                    interpreter.manifold_table.add(m, GeometryDisposition::Physical)
+                })
+                .collect::<Vec<_>>();
+
+            let (geom, disp) = interpreter.manifold_table.remove_many_into_union(copied_children, span)?;
+            Ok(interpreter.manifold_table.add_into_object(geom, disp))
+        }
+    }
+}
+
+fn __debug_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::empty(),
+        action: &|_, arguments, _, _| {
+            println!("{arguments:#?}");
+            Ok(Object::Null)
+        },
+    }
 }
 
 /// Get the implementation for a specific built-in module.
@@ -66,12 +102,12 @@ fn __debug(_interpreter: &mut Interpreter, arguments: Vec<Object>, _operator_chi
 /// Returns [`None`] if no such module exists.
 pub fn get_builtin_module(name: &str) -> Option<ModuleDefinition> {
     match name {
-        "cube" => Some(&cube),
-        "cylinder" => Some(&cylinder),
-        "square" => Some(&square),
-        "copy" => Some(&copy),
-        "children" => Some(&children),
-        "__debug" => Some(&__debug),
+        "cube" => Some(cube_definition()),
+        "cylinder" => Some(cylinder_definition()),
+        "square" => Some(square_definition()),
+        "copy" => Some(copy_definition()),
+        "children" => Some(children_definition()),
+        "__debug" => Some(__debug_definition()),
 
         _ => None,
     }

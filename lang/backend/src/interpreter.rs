@@ -246,13 +246,8 @@ impl Interpreter {
                     }
 
                     NameDefinition::BuiltinOperator(op) => {
-                        // TODO: support named parameters for built-ins
-                        if !arguments.named.is_empty() {
-                            todo!("named arguments to built-ins not yet supported");
-                        }
-                        let arguments = arguments.positional;
-
-                        let (geom, disp) = op(self, arguments, manifold_children, node.span.clone())?;
+                        let arguments = self.match_arguments_to_parameters(arguments, &op.parameters, ctx, node.span.clone())?;
+                        let (geom, disp) = (op.action)(self, arguments, manifold_children, node.span.clone())?;
                         Ok(self.manifold_table.add_into_object(geom, disp))
                     }
 
@@ -271,13 +266,8 @@ impl Interpreter {
 
                 match self.get_existing_name(name, ctx, node.span.clone())? {
                     NameDefinition::BuiltinModule(module) => {
-                        // TODO: support named parameters for built-ins
-                        if !arguments.named.is_empty() {
-                            todo!("named arguments to built-ins not yet supported");
-                        }
-                        let arguments = arguments.positional;
-
-                        module(self, arguments, ctx.operator_children, node.span.clone())
+                        let arguments = self.match_arguments_to_parameters(arguments, &module.parameters, ctx, node.span.clone())?;
+                        (module.action)(self, arguments, ctx.operator_children, node.span.clone())
                     }
 
                     NameDefinition::UserDefinedModule(user_module) => {

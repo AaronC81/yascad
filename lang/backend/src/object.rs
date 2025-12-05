@@ -112,12 +112,22 @@ impl Object {
             ),
         }
     }
+
+    pub fn as_vector(&self, span: InputSourceSpan) -> Result<&[Object], RuntimeError> {
+        match self {
+            Object::Vector(v) => Ok(v),
+            _ => Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectType { expected: "vector".to_owned(), actual: self.describe_type() },
+                span.clone())
+            ),
+        }
+    }
     
     /// Assume that the object is a vector with two number components, then unpacks the components.
     /// 
     /// If it doesn't match this form, returns an appropriate [`RuntimeError`].
-    pub fn into_2d_vector(self, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
-        let vector = self.into_vector(span.clone())?;
+    pub fn as_2d_vector(&self, span: InputSourceSpan) -> Result<(f64, f64), RuntimeError> {
+        let vector = self.as_vector(span.clone())?;
         if vector.len() != 2 {
             return Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectVectorLength { expected: 2..=2, actual: vector.len() },
@@ -135,8 +145,8 @@ impl Object {
     /// the components. If the third component is omitted, it defaults to 0.
     /// 
     /// If it doesn't match this form, returns an appropriate [`RuntimeError`].
-    pub fn into_3d_vector(self, span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
-        let vector = self.into_vector(span.clone())?;
+    pub fn as_3d_vector(&self, span: InputSourceSpan) -> Result<(f64, f64, f64), RuntimeError> {
+        let vector = self.as_vector(span.clone())?;
         if vector.len() != 2 && vector.len() != 3 {
             return Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectVectorLength { expected: 2..=3, actual: vector.len() },

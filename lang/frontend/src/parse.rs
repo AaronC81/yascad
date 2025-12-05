@@ -88,6 +88,18 @@ pub struct Parameters {
 }
 
 impl Parameters {
+    pub fn new(required: Vec<String>, optional: Vec<(String, Node)>) -> Self {
+        Self { required, optional }
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], vec![])
+    }
+
+    pub fn required(required: Vec<String>) -> Self {
+        Self::new(required, vec![])
+    }
+
     /// The total number of required and optional arguments.
     pub fn max_len(&self) -> usize {
         self.required.len() + self.optional.len()
