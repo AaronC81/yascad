@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, iter::Peekable, rc::Rc, slice};
+use std::{error::Error, fmt::Display, iter::Peekable, ops::RangeInclusive, rc::Rc, slice};
 
 use miette::Diagnostic;
 
@@ -85,6 +85,29 @@ pub enum NodeKind {
 pub struct Parameters {
     pub required: Vec<String>,
     pub optional: Vec<(String, Node)>,
+}
+
+impl Parameters {
+    /// The total number of required and optional arguments.
+    pub fn max_len(&self) -> usize {
+        self.required.len() + self.optional.len()
+    }
+
+    /// The number of required arguments.
+    pub fn min_len(&self) -> usize {
+        self.required.len()
+    }
+
+    /// The range of allowed argument lengths.
+    pub fn len_range(&self) -> RangeInclusive<usize> {
+        (self.min_len())..=(self.max_len())
+    }
+
+    /// All parameters, required and optional, in the order they'd be expected to be specified.
+    pub fn ordered_names(&self) -> impl Iterator<Item = String> {
+        self.required.iter().cloned()
+            .chain(self.optional.iter().map(|(name, _)| name.clone()))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

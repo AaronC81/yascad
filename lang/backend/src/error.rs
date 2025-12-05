@@ -33,6 +33,10 @@ pub enum RuntimeErrorKind {
     InvalidIdentifier { id: String, kind: String },
     UndefinedField { ty: String, field: String },
     IncorrectArity { expected: RangeInclusive<usize>, actual: usize },
+    DuplicateNamedArgument(String),
+    UndefinedNamedArgument(String),
+    MissingNamedArguments(Vec<String>),
+    NamedArgumentRepeatsPositionalArgument(String),
     IncorrectVectorLength { expected: RangeInclusive<usize>, actual: usize },
     MixedGeometryDisposition,
     MixedGeometryDimensions,
@@ -53,11 +57,21 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::InvalidIdentifier { id, kind } => write!(f, "identifier \"{id}\" is a {kind}, which cannot be used here"),
             RuntimeErrorKind::UndefinedField { ty, field } => write!(f, "{ty} object has no field \"{field}\""),
             RuntimeErrorKind::IncorrectArity { expected, actual } => {
-                write!(f, "incorrect number of arguments - expected ")?;
+                write!(f, "incorrect number of positional arguments - expected ")?;
                 fmt_length_range(f, expected)?;
                 write!(f, ", got {actual}")?;
                 Ok(())
             },
+            RuntimeErrorKind::DuplicateNamedArgument(name) => write!(f, "argument \"{name}\" cannot be passed by name more than once"),
+            RuntimeErrorKind::UndefinedNamedArgument(name) => write!(f, "no argument named \"{name}\""),
+            RuntimeErrorKind::MissingNamedArguments(names) => {
+                if names.len() > 1 {
+                    write!(f, "missing multiple arguments: {}", names.join(", "))
+                } else {
+                    write!(f, "missing argument \"{}\"", names[0])
+                }
+            }
+            RuntimeErrorKind::NamedArgumentRepeatsPositionalArgument(name) => write!(f, "argument \"{name}\" has already been passed as a positional argument, so cannot be passed again by name"),
             RuntimeErrorKind::IncorrectVectorLength { expected, actual } => {
                 write!(f, "incorrect vector length - expected ")?;
                 fmt_length_range(f, expected)?;

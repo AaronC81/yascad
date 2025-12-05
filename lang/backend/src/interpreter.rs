@@ -1,7 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, iter::zip, rc::Rc};
 
 use manifold_rs::Manifold;
-use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
+use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
 
 use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
 
@@ -207,15 +207,8 @@ impl Interpreter {
                         ItManifold::UnsupportedNotOneChild
                     };
 
-                if !arguments.named.is_empty() {
-                    todo!("named arguments are not yet supported"); // TODO
-                }
-                let arguments = &arguments.positional;
+                let arguments = self.evaluate_arguments(arguments, &ctx.with_it_manifold(it_manifold))?;
 
-                let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, &ctx.with_it_manifold(it_manifold)))
-                    .collect::<Result<Vec<_>, _>>()?;
-                
                 // We handle user-defined operators and built-in operators differently.
                 //
                 // User-defined operators can use `children` to access a new copy of the children.
@@ -232,7 +225,7 @@ impl Interpreter {
                         let NodeKind::OperatorDefinition { body, parameters, name: _ } = &user_operator.kind.clone()
                         else { unreachable!() };
 
-                        let arguments = Self::match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
+                        let arguments = self.match_arguments_to_parameters(arguments, parameters, ctx, node.span.clone())?;
 
                         let temporary_virtual_manifolds = manifold_children.into_iter()
                             .map(|index| {
@@ -253,6 +246,12 @@ impl Interpreter {
                     }
 
                     NameDefinition::BuiltinOperator(op) => {
+                        // TODO: support named parameters for built-ins
+                        if !arguments.named.is_empty() {
+                            todo!("named arguments to built-ins not yet supported");
+                        }
+                        let arguments = arguments.positional;
+
                         let (geom, disp) = op(self, arguments, manifold_children, node.span.clone())?;
                         Ok(self.manifold_table.add_into_object(geom, disp))
                     }
@@ -268,24 +267,24 @@ impl Interpreter {
             }
 
             NodeKind::Call { name, arguments } => {
-                if !arguments.named.is_empty() {
-                    todo!("named arguments are not yet supported"); // TODO
-                }
-                let arguments = &arguments.positional;
-
-                let arguments = arguments.iter()
-                    .map(|arg| self.interpret(arg, ctx))
-                    .collect::<Result<Vec<_>, _>>()?;
+                let arguments = self.evaluate_arguments(arguments, &ctx)?;
 
                 match self.get_existing_name(name, ctx, node.span.clone())? {
-                    NameDefinition::BuiltinModule(module) =>
-                        module(self, arguments, ctx.operator_children, node.span.clone()),
+                    NameDefinition::BuiltinModule(module) => {
+                        // TODO: support named parameters for built-ins
+                        if !arguments.named.is_empty() {
+                            todo!("named arguments to built-ins not yet supported");
+                        }
+                        let arguments = arguments.positional;
+
+                        module(self, arguments, ctx.operator_children, node.span.clone())
+                    }
 
                     NameDefinition::UserDefinedModule(user_module) => {
                         let NodeKind::ModuleDefinition { body, parameters, name: _ } = &user_module.kind.clone()
                         else { unreachable!() };
 
-                        let arguments = Self::match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
+                        let arguments = self.match_arguments_to_parameters(arguments, parameters, ctx, node.span.clone())?;
                         let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
                             body, ctx, None, arguments, node.span.clone()
                         )?;
@@ -532,30 +531,100 @@ impl Interpreter {
         Ok(())
     }
 
-    /// Given a list of arguments, and a set of expected parameter names, match the arguments and
-    /// parameters.
-    fn match_arguments_to_parameters(arguments: Vec<Object>, parameters: &Parameters, span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
-        if !parameters.optional.is_empty() {
-            todo!("Optional parameters are not yet supported"); // TODO
-        }
-        let parameters = &parameters.required;
+    /// Evaluate [`Arguments`]  into [`EvaluatedArguments`] using the interpreter.
+    pub fn evaluate_arguments(&mut self, arguments: &Arguments, ctx: &ExecutionContext) -> Result<EvaluatedArguments, RuntimeError> {
+        Ok(EvaluatedArguments {
+            positional: arguments.positional.iter()
+                .map(|arg| self.interpret(arg, ctx))
+                .collect::<Result<Vec<_>, _>>()?,
+            named: arguments.named.iter()
+                .map(|(name, arg)| self.interpret(arg, ctx).map(|obj| (name.clone(), obj)))
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
 
-        // Validate number of arguments so forthcoming `zip` is definitely balanced
-        if arguments.len() != parameters.len() {
+    /// Given a list of arguments and parameters, match the arguments to parameters, and return a
+    /// set of parameter names matched to argument values (or defaults).
+    fn match_arguments_to_parameters(&mut self, arguments: EvaluatedArguments, parameters: &Parameters, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
+        // TODO: validate on definition that parameter names are unique
+
+        // TODO: needs changing:
+        //  / Check no duplicate argument names
+        //  - Check that all required parameters are handled - either as positional XOR named (NOT both)
+        //  - Check that optional parameters, if specified, are positional XOR named (NOT both)
+        //  - Check all named parameters actually exist
+        //  - Instantiate optional defaults
+
+        // Check that named arguments are specified no more than once
+        for (name, _) in &arguments.named {
+            let count_args_with_name = arguments.named.iter()
+                .filter(|(n, _)| n == name)
+                .count();
+
+            if count_args_with_name > 1 {
+                return Err(RuntimeError::new(RuntimeErrorKind::DuplicateNamedArgument(name.to_owned()), span));
+            }
+        }
+
+        // Validate that there aren't more positional arguments than we can possibly ever accept
+        if arguments.positional.len() > parameters.max_len() {
             return Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectArity {
-                    expected: parameters.len()..=parameters.len(),
-                    actual: arguments.len(),
+                    expected: parameters.len_range(),
+                    actual: arguments.positional.len(),
                 },
                 span,
             ));
         }
 
-        // Convert to hash
-        Ok(arguments.into_iter()
-            .zip(parameters)
-            .map(|(arg, param)| (param.to_owned(), arg))
-            .collect::<HashMap<_, _>>())
+        // Map positional arguments to ascending parameters
+        // (We enforce in the parser that required arguments come before optional arguments)
+        enum Location { Positional, Named }
+        let mut map = HashMap::new();
+        for (arg, param) in zip(&arguments.positional, parameters.ordered_names()) {
+            map.insert(param, (arg.clone(), Location::Positional));
+        }
+
+        // Now map named arguments to parameters, validating the parameters weren't already assigned
+        // and do actually exist
+        for (name, arg) in &arguments.named {
+            if parameters.ordered_names().find(|n| n == name).is_none() {
+                return Err(RuntimeError::new(RuntimeErrorKind::UndefinedNamedArgument(name.to_owned()), span))
+            }
+
+            if let Some((_, loc)) = map.get(name) {
+                return match loc {
+                    Location::Positional => Err(RuntimeError::new(RuntimeErrorKind::NamedArgumentRepeatsPositionalArgument(name.to_owned()), span)),
+                    Location::Named => Err(RuntimeError::new(RuntimeErrorKind::DuplicateNamedArgument(name.to_owned()), span)),
+                }
+            }
+
+            map.insert(name.clone(), (arg.clone(), Location::Named));
+        }
+
+        // Check that all required parameters were specified
+        let missing_required_params = parameters.required.iter()
+            .filter(|param| !map.contains_key(param.to_owned()))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_required_params.is_empty() {
+            return Err(RuntimeError::new(RuntimeErrorKind::MissingNamedArguments(missing_required_params), span))
+        }
+
+        // For any optional parameters where values weren't given, instantiate the default
+        for (name, default) in &parameters.optional {
+            if !map.contains_key(name) {
+                let default = self.interpret(default, ctx)?;
+                map.insert(name.to_owned(), (default, Location::Named));
+            }
+        }
+
+        // Discard now-irrelevant location
+        let map = map.into_iter()
+            .map(|(k, (o, _))| (k, o))
+            .collect();
+
+        Ok(map)
     }
 }
 
@@ -602,4 +671,10 @@ impl NameDefinition {
             NameDefinition::UserDefinedOperator(_) => "user-defined operator",
         }.to_string()
     }
+}
+
+/// A collection of evaluated arguments.
+pub struct EvaluatedArguments {
+    positional: Vec<Object>,
+    named: Vec<(String, Object)>,
 }
