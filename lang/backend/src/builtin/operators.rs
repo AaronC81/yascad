@@ -89,6 +89,46 @@ fn linear_extrude_definition() -> OperatorDefinition {
     }
 }
 
+fn rotate_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: Parameters::required(vec!["v".to_owned()]),
+        action: &|interpreter, arguments, children, span| {
+            let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
+
+            Ok((match geom {
+                GeometryTableEntry::Manifold(manifold) => {
+                    let (x, y, z) = arguments["v"].as_3d_vector(span.clone())?;
+                    GeometryTableEntry::Manifold(manifold.rotate(x, y, z))
+                }
+                GeometryTableEntry::CrossSection(cross_section) => {
+                    let angle = arguments["v"].as_number(span.clone())?;
+                    GeometryTableEntry::CrossSection(cross_section.rotate(angle))
+                }
+            }, disp))
+        },
+    }
+}
+
+fn scale_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: Parameters::required(vec!["v".to_owned()]),
+        action: &|interpreter, arguments, children, span| {
+            let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
+
+            Ok((match geom {
+                GeometryTableEntry::Manifold(manifold) => {
+                    let (x, y, z) = arguments["v"].as_3d_vector(span.clone())?;
+                    GeometryTableEntry::Manifold(manifold.scale(x, y, z))
+                }
+                GeometryTableEntry::CrossSection(cross_section) => {
+                    let (x, y) = arguments["v"].as_2d_vector(span.clone())?;
+                    GeometryTableEntry::CrossSection(cross_section.scale(x, y))
+                }
+            }, disp))
+        },
+    }
+}
+
 fn buffer_definition() -> OperatorDefinition {
     OperatorDefinition {
         parameters: Parameters::empty(),
@@ -108,6 +148,8 @@ pub fn get_builtin_operator(name: &str) -> Option<OperatorDefinition> {
         "union" => Some(union_definition()),
         "difference" => Some(difference_definition()),
         "linear_extrude" => Some(linear_extrude_definition()),
+        "rotate" => Some(rotate_definition()),
+        "scale" => Some(scale_definition()),
         "buffer" => Some(buffer_definition()),
 
         _ => None,

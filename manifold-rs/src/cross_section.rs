@@ -68,6 +68,23 @@ impl CrossSection {
         }
     }
 
+    /// Create a new cross section which is a rotation of this one.
+    pub fn rotate(&self, angle: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_cross_section_rotate(ptr, self.ptr, angle))
+        }
+    }
+
+    /// Create a new cross section by scaling this one.
+    pub fn scale(&self, x: f64, y: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_cross_section_scale(ptr, self.ptr, x, y))
+        }
+    }
+
+
     /// Create a new cross section by subtracting another manifold from this one.
     pub fn difference(&self, other: &CrossSection) -> Self {
         unsafe {

@@ -89,6 +89,14 @@ impl Manifold {
         }
     }
 
+    /// Create a new manifold by scaling this one.
+    pub fn scale(&self, x: f64, y: f64, z: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_scale(ptr, self.ptr, x, y, z))
+        }
+    }
+
     /// Create a new manifold by subtracting another manifold from this one.
     pub fn difference(&self, other: &Manifold) -> Self {
         unsafe {
