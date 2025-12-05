@@ -31,7 +31,7 @@ pub enum NodeKind {
 
     OperatorApplication {
         name: String,
-        arguments: Vec<Node>,
+        arguments: Arguments,
 
         // Note: the indexes in here might not necessarily line up with children at runtime, since
         // only some of these might evaluate to a manifold
@@ -39,7 +39,7 @@ pub enum NodeKind {
     },
     Call {
         name: String,
-        arguments: Vec<Node>,
+        arguments: Arguments,
     },
 
     Binding {
@@ -85,6 +85,12 @@ pub enum NodeKind {
 pub struct Parameters {
     pub required: Vec<String>,
     pub optional: Vec<(String, Node)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Arguments {
+    pub positional: Vec<Node>,
+    pub named: Vec<(String, Node)>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -139,6 +145,7 @@ pub enum ParseErrorKind {
     UnexpectedEnd,
     InvalidNumber,
     RequiredParameterAfterOptionalParameter(String),
+    PositionalArgumentAfterNamedArgument,
 }
 
 impl Display for ParseErrorKind {
@@ -148,6 +155,7 @@ impl Display for ParseErrorKind {
             ParseErrorKind::UnexpectedEnd => write!(f, "unexpected end-of-file"),
             ParseErrorKind::InvalidNumber => write!(f, "number could not be parsed, possibly out-of-range?"),
             ParseErrorKind::RequiredParameterAfterOptionalParameter(name) => write!(f, "required parameter \"{name}\" appears after optional parameters - required parameters must come first"),
+            ParseErrorKind::PositionalArgumentAfterNamedArgument => write!(f, "positional argument appears after named arguments - positional arguments must come first"),
         }
     }
 }
@@ -384,8 +392,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             TokenKind::Identifier(id) => {
                 if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::LParen) {
                     // An identifier immediately followed by lparen is a call
-                    self.tokens.next().unwrap(); // discard lparen
-                    let (arguments, arguments_span) = self.parse_bracketed_comma_separated_expression_list(TokenKind::RParen)?;
+                    let (arguments, arguments_span) = self.parse_argument_list()?;
                     let call_span = span.union_with(&[arguments_span]);
 
                     // If, after the call, there's immediately another identifier, then this call
@@ -598,6 +605,42 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         Some((name.to_owned(), parameters, body, span))
     }
 
+    fn parse_argument_list(&mut self) -> Option<(Arguments, InputSourceSpan)> {
+        self.expect(TokenKind::LParen)?;
+        let (parsed_arguments, span) = self.parse_bracketed_comma_separated_list(TokenKind::RParen, |parser| {
+            let (expr, _) = parser.parse_expression()?;
+
+            if let NodeKind::Identifier(name) = &expr.kind
+                && parser.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals)
+            {
+                let name = name.to_owned();
+                parser.tokens.next().unwrap();
+                let (expr, _) = parser.parse_expression()?;
+                Some((expr, Some(name)))
+            } else {
+                Some((expr, None))
+            }
+        })?;
+
+        // Positional arguments must appear before named arguments
+        let mut encountered_named = false;
+        let mut arguments = Arguments { positional: vec![], named: vec![] };
+        for (value, name) in parsed_arguments {
+            if let Some(name) = name {
+                encountered_named = true;
+                arguments.named.push((name, value));
+            } else {
+                if encountered_named {
+                    self.errors.push(ParseError::new(ParseErrorKind::PositionalArgumentAfterNamedArgument, span.clone()))
+                }
+
+                arguments.positional.push(value);
+            }
+        }
+
+        Some((arguments, span))
+    }
+
     /// If the next tokens are a field access, e.g. `.x.y`, wrap the given node in these accesses.
     /// Otherwise, return the node unchanged.
     fn parse_any_field_access_suffixes(&mut self, mut value: Node) -> Node {
@@ -770,7 +813,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 mod test {
     use std::rc::Rc;
 
-    use crate::{InputSource, Node, NodeKind, Parser, tokenize};
+    use crate::{Arguments, InputSource, Node, NodeKind, Parser, tokenize};
 
     #[test]
     fn test_basic_parse() {
@@ -791,11 +834,14 @@ mod test {
             &Node::new(
                 NodeKind::Call {
                     name: "cube".to_owned(),
-                    arguments: vec![
-                        Node::new(NodeKind::NumberLiteral(10.0), source.span(5, 2)),
-                        Node::new(NodeKind::NumberLiteral(20.5), source.span(9, 4)),
-                        Node::new(NodeKind::NumberLiteral(30.0), source.span(15, 2)),
-                    ],
+                    arguments: Arguments {
+                        positional: vec![
+                            Node::new(NodeKind::NumberLiteral(10.0), source.span(5, 2)),
+                            Node::new(NodeKind::NumberLiteral(20.5), source.span(9, 4)),
+                            Node::new(NodeKind::NumberLiteral(30.0), source.span(15, 2)),
+                        ],
+                        named: vec![],
+                    }
                 },
                 source.span(0, 18)
             )

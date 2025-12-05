@@ -207,6 +207,11 @@ impl Interpreter {
                         ItManifold::UnsupportedNotOneChild
                     };
 
+                if !arguments.named.is_empty() {
+                    todo!("named arguments are not yet supported"); // TODO
+                }
+                let arguments = &arguments.positional;
+
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg, &ctx.with_it_manifold(it_manifold)))
                     .collect::<Result<Vec<_>, _>>()?;
@@ -263,6 +268,11 @@ impl Interpreter {
             }
 
             NodeKind::Call { name, arguments } => {
+                if !arguments.named.is_empty() {
+                    todo!("named arguments are not yet supported"); // TODO
+                }
+                let arguments = &arguments.positional;
+
                 let arguments = arguments.iter()
                     .map(|arg| self.interpret(arg, ctx))
                     .collect::<Result<Vec<_>, _>>()?;
