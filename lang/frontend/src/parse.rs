@@ -60,12 +60,12 @@ pub enum NodeKind {
 
     OperatorDefinition {
         name: String,
-        parameters: Vec<String>, // TODO: optional parameters
+        parameters: Parameters,
         body: Vec<Node>,
     },
     ModuleDefinition {
         name: String,
-        parameters: Vec<String>, // TODO: optional parameters
+        parameters: Parameters,
         body: Vec<Node>,
     },
 
@@ -79,6 +79,12 @@ pub enum NodeKind {
         true_body: Vec<Node>,
         false_body: Option<Vec<Node>>,
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Parameters {
+    pub required: Vec<String>,
+    pub optional: Vec<(String, Node)>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -132,7 +138,7 @@ pub enum ParseErrorKind {
     UnexpectedToken(TokenKind),
     UnexpectedEnd,
     InvalidNumber,
-    InvalidOperatorParameter,
+    RequiredParameterAfterOptionalParameter(String),
 }
 
 impl Display for ParseErrorKind {
@@ -141,7 +147,7 @@ impl Display for ParseErrorKind {
             ParseErrorKind::UnexpectedToken(token_kind) => write!(f, "unexpected {token_kind}"),
             ParseErrorKind::UnexpectedEnd => write!(f, "unexpected end-of-file"),
             ParseErrorKind::InvalidNumber => write!(f, "number could not be parsed, possibly out-of-range?"),
-            ParseErrorKind::InvalidOperatorParameter => write!(f, "invalid operator parameter"),
+            ParseErrorKind::RequiredParameterAfterOptionalParameter(name) => write!(f, "required parameter \"{name}\" appears after optional parameters - required parameters must come first"),
         }
     }
 }
@@ -379,7 +385,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::LParen) {
                     // An identifier immediately followed by lparen is a call
                     self.tokens.next().unwrap(); // discard lparen
-                    let (arguments, arguments_span) = self.parse_bracketed_comma_separated_list(TokenKind::RParen)?;
+                    let (arguments, arguments_span) = self.parse_bracketed_comma_separated_expression_list(TokenKind::RParen)?;
                     let call_span = span.union_with(&[arguments_span]);
 
                     // If, after the call, there's immediately another identifier, then this call
@@ -456,7 +462,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     Some(Token { kind: TokenKind::Comma, .. }) => {
                         self.tokens.next().unwrap();
 
-                        let (mut items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket)?;
+                        let (mut items, end_span) = self.parse_bracketed_comma_separated_expression_list(TokenKind::RBracket)?;
                         items.insert(0, first_item);
 
                         let vector_span = span.union_with(slice::from_ref(&end_span));
@@ -541,36 +547,44 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     /// 
     /// Returns, in order:
     ///   - Name of the definition
-    ///   - List of parameter names
+    ///   - Parameters
     ///   - Body
     ///   - Span of entire definition
-    fn parse_definition(&mut self) -> Option<(String, Vec<String>, Vec<Node>, InputSourceSpan)> {
+    fn parse_definition(&mut self) -> Option<(String, Parameters, Vec<Node>, InputSourceSpan)> {
         let Token { span: start_span, .. } = self.tokens.next().unwrap();
 
-        let Some(name_token) = self.tokens.next()
-        else {
-            self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
-            return None;
-        };
-
-        let TokenKind::Identifier(name) = &name_token.kind
-        else {
-            self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(name_token.kind), name_token.span));
-            return None;
-        };
+        let (name, _) = self.expect_identifier()?;
 
         // Parse parameters
         self.expect(TokenKind::LParen)?;
-        let (parameters, _) = self.parse_bracketed_comma_separated_list(TokenKind::RParen)?;
-        let parameters = parameters.into_iter()
-            .map(|node| match node.kind {
-                NodeKind::Identifier(id) => id,
-                _ => {
-                    self.errors.push(ParseError::new(ParseErrorKind::InvalidOperatorParameter, node.span));
-                    "DUMMY".to_owned()
+        let (parsed_parameters, _) = self.parse_bracketed_comma_separated_list(TokenKind::RParen, |parser| {
+            let (name, _) = parser.expect_identifier()?;
+
+            if parser.tokens.peek().is_some_and(|token| token.kind == TokenKind::Equals) {
+                parser.tokens.next().unwrap();
+                let (default, _) = parser.parse_expression()?;
+                Some((name, Some(default)))
+            } else {
+                Some((name, None))
+            }
+        })?;
+        
+        // Transform "parameters, maybe with defaults" into distinct lists, validating that any
+        // optionals appear after required
+        let mut encountered_optional = false;
+        let mut parameters = Parameters { required: vec![], optional: vec![] };
+        for (name, default) in parsed_parameters {
+            if let Some(default) = default {
+                encountered_optional = true;
+                parameters.optional.push((name, default));
+            } else {
+                if encountered_optional {
+                    self.errors.push(ParseError::new(ParseErrorKind::RequiredParameterAfterOptionalParameter(name.clone()), start_span.clone()))
                 }
-            })
-            .collect::<Vec<_>>();
+
+                parameters.required.push(name);
+            }
+        }
 
         // Parse body
         let body = self.parse_braced_statement_list()?;
@@ -590,22 +604,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Dot) {
             let Token { span: dot_span, .. } = self.tokens.next().unwrap();
 
-            let Some(Token { span: name_span, kind }) = self.tokens.next()
-            else {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
-                break;
-            };
-
-            let TokenKind::Identifier(name) = &kind
-            else {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), name_span));
-                break;
-            };
+            let Some((field, name_span)) = self.expect_identifier()
+            else { break };
 
             value = Node::new(
                 NodeKind::FieldAccess {
                     value: Box::new(value),
-                    field: name.to_owned(),
+                    field,
                 },
                 dot_span.union_with(&[name_span]),
             )
@@ -615,7 +620,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     // Assumes you have already consumed the start of the list (e.g. left paren)
-    fn parse_bracketed_comma_separated_list(&mut self, end: TokenKind) -> Option<(Vec<Node>, InputSourceSpan)> {
+    fn parse_bracketed_comma_separated_list<T>(&mut self, end: TokenKind, parse_fn: impl Fn(&mut Self) -> Option<T>) -> Option<(Vec<T>, InputSourceSpan)> {
         let start_span = self.tokens.peek()?.span.clone();
         let mut end_span = None;
 
@@ -627,8 +632,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
         let mut items = vec![];
         loop {
-            if let Some((arg, _)) = self.parse_expression() {
-                items.push(arg);
+            if let Some(item) = parse_fn(self) {
+                items.push(item);
             }
 
             let Some(separator) = self.tokens.next() else {
@@ -638,7 +643,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             if separator.kind == TokenKind::Comma {
                 // This is the expected separator, nothing specific required - we'll loop round to
-                // parse another argument.
+                // parse another item.
                 //
                 // Trailing commas are allowed though, so check for rparen
                 if self.tokens.peek().is_some_and(|token| token.kind == end) {
@@ -654,13 +659,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
         }
 
-        let mut spans = items.iter()
-            .map(|node| node.span.clone())
-            .collect::<Vec<_>>();
+        let mut span = start_span;
         if let Some(end_span) = end_span {
-            spans.push(end_span);
+            span = span.union_with(slice::from_ref(&end_span));
         }
-        Some((items, start_span.union_with(&spans)))
+        Some((items, span))
+    }
+
+    // Assumes you have already consumed the start of the list (e.g. left paren)
+    fn parse_bracketed_comma_separated_expression_list(&mut self, end: TokenKind) -> Option<(Vec<Node>, InputSourceSpan)> {
+        self.parse_bracketed_comma_separated_list(end, |p|
+            p.parse_expression().map(|(n, _)| n))
     }
 
     fn parse_braced_statement_list(&mut self) -> Option<Vec<Node>> {
@@ -738,6 +747,21 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         } else {
             self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
             None
+        }
+    }
+
+    /// Like [`expect`] but specifically expects an identifier, and returns its string value.
+    fn expect_identifier(&mut self) -> Option<(String, InputSourceSpan)> {
+        match self.tokens.next() {
+            Some(Token { kind: TokenKind::Identifier(id), span }) => Some((id, span)),
+            Some(Token { kind, span }) => {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), span));
+                None
+            }
+            None => {
+                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                None
+            }
         }
     }
 }

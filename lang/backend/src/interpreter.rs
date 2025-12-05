@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use manifold_rs::Manifold;
-use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind};
+use yascad_frontend::{BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
 
 use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
 
@@ -524,7 +524,12 @@ impl Interpreter {
 
     /// Given a list of arguments, and a set of expected parameter names, match the arguments and
     /// parameters.
-    fn match_arguments_to_parameters(arguments: Vec<Object>, parameters: &[String], span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
+    fn match_arguments_to_parameters(arguments: Vec<Object>, parameters: &Parameters, span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
+        if !parameters.optional.is_empty() {
+            todo!("Optional parameters are not yet supported"); // TODO
+        }
+        let parameters = &parameters.required;
+
         // Validate number of arguments so forthcoming `zip` is definitely balanced
         if arguments.len() != parameters.len() {
             return Err(RuntimeError::new(
