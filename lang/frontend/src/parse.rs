@@ -73,6 +73,11 @@ pub enum NodeKind {
         loop_source: Box<Node>,
         body: Vec<Node>,
     },
+    IfConditional {
+        condition: Box<Node>,
+        true_body: Vec<Node>,
+        false_body: Option<Vec<Node>>,
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -239,6 +244,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 },
                 span,
             ))
+        }
+
+        // Try parse `if` statement
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwIf) {
+            return self.parse_if_statement()
         }
 
         let (mut expr, mut terminator) = self.parse_expression()?;
@@ -662,6 +672,46 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
 
         Some(stmts)
+    }
+
+    fn parse_if_statement(&mut self) -> Option<Node> {
+        let Token { span: start_span, .. } = self.expect(TokenKind::KwIf)??;
+        self.expect(TokenKind::LParen)??;
+
+        let (condition, _) = self.parse_expression()?;
+        let Token { span: body_end_span, .. } = self.expect(TokenKind::RParen)??;
+
+        let true_body = self.parse_braced_statement_list()?;
+        let false_body =
+            if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwElse) {
+                self.tokens.next().unwrap();
+                
+                match self.tokens.peek() {
+                    Some(Token { kind: TokenKind::KwIf, .. }) => Some(vec![self.parse_if_statement()?]),
+                    Some(Token { kind: TokenKind::LBrace, .. }) => Some(self.parse_braced_statement_list()?),
+                    
+                    Some(Token { kind, span }) => {
+                        self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind.clone()), span.clone()));
+                        None
+                    }
+                    None => {
+                        self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+        let span = start_span.union_with(&[body_end_span]);        
+        return Some(Node::new(
+            NodeKind::IfConditional {
+                condition: Box::new(condition),
+                true_body,
+                false_body,
+            },
+            span,
+        ))
     }
 
     /// Consume a token which is expected to be of a certain kind, generating an error if it's not.

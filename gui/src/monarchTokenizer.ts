@@ -4,7 +4,7 @@
 export default {
   keywords: [
     // Language-level keywords
-    'operator', 'module', 'it', 'for',
+    'operator', 'module', 'it', 'for', 'if', 'else',
 
     // Not really keywords, but important/special enough to highlight like one
     'buffer', 'children', 'copy',

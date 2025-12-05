@@ -232,7 +232,7 @@ impl Interpreter {
                             })
                             .collect::<Vec<_>>();
 
-                        let (geom, disp) = self.interpret_scoped_body_into_geometry(
+                        let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
                             body, ctx, Some(&temporary_virtual_manifolds), arguments, node.span.clone()
                         )?;
 
@@ -272,7 +272,7 @@ impl Interpreter {
                         else { unreachable!() };
 
                         let arguments = Self::match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
-                        let (geom, disp) = self.interpret_scoped_body_into_geometry(
+                        let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
                             body, ctx, None, arguments, node.span.clone()
                         )?;
 
@@ -359,20 +359,33 @@ impl Interpreter {
             NodeKind::ForLoop { loop_variable, loop_source, body } => {
                 let loop_source = self.interpret(loop_source, ctx)?.into_vector(node.span.clone())?;
 
-                let mut result_objects = vec![];
+                let mut result_indices = vec![];
                 for item in loop_source {
                     let ctx = ctx.with_deeper_scope();
                     self.add_name(&loop_variable, NameDefinition::Binding(item), &ctx, node.span.clone())?;
+                    let (geom, disp) = self.interpret_body_into_geometry(&body, &ctx, node.span.clone())?;
                     
-                    result_objects.extend(self.interpret_body(body, &ctx)?)
+                    result_indices.push(self.manifold_table.add(geom, disp));
                 }
 
-                let (geom, disp) = self.manifold_table.remove_many_into_union(
-                    self.filter_objects_to_physical_geometries(result_objects),
-                    node.span.clone(),
-                )?;
+                let (geom, disp) = self.manifold_table.remove_many_into_union(result_indices, node.span.clone())?;
                 Ok(self.manifold_table.add_into_object(geom, disp))
-            }
+            },
+
+            NodeKind::IfConditional { condition, true_body, false_body } => {
+                let condition = self.interpret(condition, ctx)?.as_boolean(node.span.clone())?;
+
+                let ctx = ctx.with_deeper_scope();
+                if condition {
+                    let (geom, disp) = self.interpret_body_into_geometry(&true_body, &ctx, node.span.clone())?;
+                    Ok(self.manifold_table.add_into_object(geom, disp))
+                } else if let Some(false_body) = false_body {
+                    let (geom, disp) = self.interpret_body_into_geometry(&false_body, &ctx, node.span.clone())?;
+                    Ok(self.manifold_table.add_into_object(geom, disp))
+                } else {
+                    Ok(Object::Null)
+                }
+            },
         }
     }
 
@@ -383,9 +396,26 @@ impl Interpreter {
             .collect()
     }
 
-    /// Execute a list of nodes in a new scope, and collect any geometry that they generate into
-    /// a single union'ed geometry. This is how modules and operators behave.
-    fn interpret_scoped_body_into_geometry(
+    /// Execute a list of nodes and collect any geometry that they generate into a single union'ed
+    /// geometry. This is how control-flow operations behave.
+    /// 
+    /// It is the caller's responsibility to create a new deeper scope if necessary, because the
+    /// caller may wish to inject variables into it (e.g. the `for` loop counter).
+    fn interpret_body_into_geometry(
+        &mut self,
+        nodes: &[Node],
+        ctx: &ExecutionContext,
+        span: InputSourceSpan,
+    ) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
+        let result_objects = self.interpret_body(nodes, &ctx)?;
+        let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
+        self.manifold_table.remove_many_into_union(result_manifolds, span)
+    }
+
+    /// Execute a list of nodes in a new scope, with a given set of arguments and children, and
+    /// collect any geometry that they generate into a single union'ed geometry. This is how modules
+    /// and operators behave.
+    fn interpret_scoped_definition_body_into_geometry(
         &mut self,
         nodes: &[Node],
         ctx: &ExecutionContext,
@@ -393,14 +423,15 @@ impl Interpreter {
         arguments: HashMap<String, Object>,
         span: InputSourceSpan,
     ) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
-        let result_objects = self.interpret_body(nodes, &ctx
-            .with_it_manifold(ItManifold::None)
-            .with_operator_children(operator_children)
-            .with_deeper_scope()
-            .with_arguments(arguments))?;
-        let result_manifolds = self.filter_objects_to_physical_geometries(result_objects);
-
-        self.manifold_table.remove_many_into_union(result_manifolds, span)
+        self.interpret_body_into_geometry(
+            nodes,
+            &ctx
+                .with_it_manifold(ItManifold::None)
+                .with_operator_children(operator_children)
+                .with_deeper_scope()
+                .with_arguments(arguments),
+            span,
+        )
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
