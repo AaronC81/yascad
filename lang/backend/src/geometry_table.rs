@@ -139,6 +139,13 @@ impl GeometryTable {
     /// Returns an [`Err`] if the given geometries do not all have the same disposition or
     /// dimension.
     pub fn remove_many_into_union(&mut self, mut indices: Vec<GeometryTableIndex>, span: InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError> {
+        // TODO: this shouldn't be an error, really - but with the code structure right now, we 
+        // don't know whether to return an empty Manifold or an empty CrossSection. We need a way
+        // to return a polymorphic "empty thing" but can't do that yet.
+        if indices.len() == 0 {
+            return Err(RuntimeError::new(RuntimeErrorKind::ChildrenExpected, span));
+        }
+
         if indices.len() == 1 {
             return Ok(self.remove(indices.remove(0)));
         }
