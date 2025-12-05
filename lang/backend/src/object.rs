@@ -7,6 +7,7 @@ use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryTable, Geom
 pub enum Object {
     Null,
     Number(f64),
+    Boolean(bool),
     Manifold(GeometryTableIndex),
     CrossSection(GeometryTableIndex),
     Vector(Vec<Object>),
@@ -17,6 +18,7 @@ impl Object {
         match self {
             Object::Null => "null",
             Object::Number(_) => "number",
+            Object::Boolean(_) => "boolean",
             Object::Manifold(_) => "3D manifold",
             Object::CrossSection(_) => "2D cross-section",
             Object::Vector(_) => "vector",
@@ -26,7 +28,7 @@ impl Object {
     #[allow(clippy::get_first)] // `get(1/2)` mixed with `first()` is confusing
     pub fn get_field(&self, field: &str, manifold_table: &GeometryTable) -> Option<Object> {
         match self {
-            Object::Null | Object::Number(_) => None,
+            Object::Null | Object::Number(_) | Object::Boolean(_) => None,
 
             Object::Vector(objects) => {
                 match field {
@@ -66,6 +68,16 @@ impl Object {
             Object::Number(num) => Ok(*num),
             _ => Err(RuntimeError::new(
                 RuntimeErrorKind::IncorrectType { expected: "number".to_owned(), actual: self.describe_type() },
+                span.clone())
+            ),
+        }
+    }
+
+    pub fn as_boolean(&self, span: InputSourceSpan) -> Result<bool, RuntimeError> {
+        match self {
+            Object::Boolean(bool) => Ok(*bool),
+            _ => Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectType { expected: "boolean".to_owned(), actual: self.describe_type() },
                 span.clone())
             ),
         }
@@ -155,5 +167,30 @@ impl From<Vec3<f64>> for Object {
 impl From<Vec2<f64>> for Object {
     fn from(value: Vec2<f64>) -> Self {
         Self::Vector(vec![Self::Number(value.x), Self::Number(value.y)])
+    }
+}
+
+// Not full equivalence because manifolds/cross-sections are never equal
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Number(l), Self::Number(r)) => l == r,
+            (Self::Boolean(l), Self::Boolean(r)) => l == r,
+            (Self::Vector(l), Self::Vector(r)) => l == r,
+            (Self::Null, Self::Null) => true,
+
+            // Because it's a footgun, geometry never compares
+            (Self::Manifold(_), Self::Manifold(_)) => false,
+            (Self::CrossSection(_), Self::CrossSection(_)) => false,
+
+            // Not using `_` so we get exhaustiveness error for new variants
+            (Self::Number(_), _)
+            | (Self::Boolean(_), _)
+            | (Self::Vector(_), _)
+            | (Self::Null, _)
+            | (Self::Manifold(_), _)
+            | (Self::CrossSection(_), _)
+                => false,
+        }
     }
 }

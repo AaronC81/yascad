@@ -81,6 +81,12 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+
+    Equals,
+    LessThan,
+    LessThanOrEquals,
+    GreaterThan,
+    GreaterThanOrEquals,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -267,7 +273,38 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_expression(&mut self) -> Option<(Node, StatementTerminator)> {
-        self.parse_add_sub_expression()
+        self.parse_comparison_expression()
+    }
+
+    fn parse_comparison_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut left, mut terminator) = self.parse_add_sub_expression()?;
+
+        while let Some(Token { kind, .. }) = self.tokens.peek() {
+            let op = match kind {
+                TokenKind::DoubleEquals => BinaryOperator::Equals,
+                TokenKind::LAngle => BinaryOperator::LessThan,
+                TokenKind::LAngleEquals => BinaryOperator::LessThanOrEquals,
+                TokenKind::RAngle => BinaryOperator::GreaterThan,
+                TokenKind::RAngleEquals => BinaryOperator::GreaterThanOrEquals,
+                _ => break
+            };
+
+            self.tokens.next().unwrap();
+
+            let (right, right_terminator) = self.parse_add_sub_expression()?;
+            let span = left.span.union_with(slice::from_ref(&right.span));
+            left = Node::new(
+                NodeKind::BinaryOperation {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op,
+                },
+                span,
+            );
+            terminator = right_terminator;
+        }
+
+        Some((left, terminator))
     }
 
     fn parse_add_sub_expression(&mut self) -> Option<(Node, StatementTerminator)> {

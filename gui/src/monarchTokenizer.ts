@@ -10,7 +10,7 @@ export default {
     'buffer', 'children', 'copy',
   ],
 
-  operators: ['=', '+', '-', '*', '/',],
+  operators: ['=', '+', '-', '*', '/', '==', '<', '>', '<=', '>='],
 
   symbols:  /[=><!~?:&|+\-*\/\^%]+/,
 

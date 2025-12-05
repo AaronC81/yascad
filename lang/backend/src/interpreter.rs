@@ -310,17 +310,35 @@ impl Interpreter {
             },
 
             NodeKind::BinaryOperation { left, right, op } => {
-                let left = self.interpret(left, ctx)?.as_number(node.span.clone())?;
-                let right = self.interpret(right, ctx)?.as_number(node.span.clone())?;
+                let left = self.interpret(left, ctx)?;
+                let right = self.interpret(right, ctx)?;
 
-                let result = match op {
-                    BinaryOperator::Add => left + right,
-                    BinaryOperator::Subtract => left - right,
-                    BinaryOperator::Multiply => left * right,
-                    BinaryOperator::Divide => left / right,
+                let numeric_binop = |operation: &'static dyn Fn(f64, f64) -> f64| {
+                    Ok::<Object, RuntimeError>(Object::Number(operation(
+                        left.as_number(node.span.clone())?,
+                        right.as_number(node.span.clone())?,
+                    )))
+                };
+                let numeric_comparison_binop = |operation: &'static dyn Fn(f64, f64) -> bool| {
+                    Ok::<Object, RuntimeError>(Object::Boolean(operation(
+                        left.as_number(node.span.clone())?,
+                        right.as_number(node.span.clone())?,
+                    )))
                 };
 
-                Ok(Object::Number(result))
+                match op {
+                    BinaryOperator::Add => numeric_binop(&|l, r| l + r),
+                    BinaryOperator::Subtract => numeric_binop(&|l, r| l - r),
+                    BinaryOperator::Multiply => numeric_binop(&|l, r| l * r),
+                    BinaryOperator::Divide => numeric_binop(&|l, r| l / r),
+
+                    BinaryOperator::Equals => Ok(Object::Boolean(left == right)),
+
+                    BinaryOperator::LessThan => numeric_comparison_binop(&|l, r| l < r),
+                    BinaryOperator::LessThanOrEquals => numeric_comparison_binop(&|l, r| l <= r),
+                    BinaryOperator::GreaterThan => numeric_comparison_binop(&|l, r| l > r),
+                    BinaryOperator::GreaterThanOrEquals => numeric_comparison_binop(&|l, r| l >= r),
+                }
             },
 
             NodeKind::UnaryNegate(value) => {

@@ -32,10 +32,11 @@ pub enum TokenKind {
     RBrace,
     LBracket,
     RBracket,
+    LAngle,
+    RAngle,
     
     Comma,
     Semicolon,
-    Equals,
     Dot,
     Colon,
 
@@ -43,6 +44,11 @@ pub enum TokenKind {
     Minus,
     ForwardSlash,
     Star,
+
+    Equals,
+    DoubleEquals,
+    LAngleEquals,
+    RAngleEquals,
 }
 
 impl Display for TokenKind {
@@ -56,6 +62,8 @@ impl Display for TokenKind {
             TokenKind::RBrace => write!(f, "right brace"),
             TokenKind::LBracket => write!(f, "left bracket"),
             TokenKind::RBracket => write!(f, "right bracket"),
+            TokenKind::LAngle => write!(f, "less-than"),
+            TokenKind::RAngle => write!(f, "greater-than"),
 
             TokenKind::KwIt => write!(f, "keyword \"it\""),
             TokenKind::KwOperator => write!(f, "keyword \"operator\""),
@@ -64,7 +72,6 @@ impl Display for TokenKind {
 
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
-            TokenKind::Equals => write!(f, "equals"),
             TokenKind::Dot => write!(f, "dot"),
             TokenKind::Colon => write!(f, "colon"),
 
@@ -72,6 +79,11 @@ impl Display for TokenKind {
             TokenKind::Minus => write!(f, "minus"),
             TokenKind::ForwardSlash => write!(f, "forward slash"),
             TokenKind::Star => write!(f, "star"),
+
+            TokenKind::Equals => write!(f, "equals"),
+            TokenKind::DoubleEquals => write!(f, "double-equals"),
+            TokenKind::LAngleEquals => write!(f, "less-than-or-equals"),
+            TokenKind::RAngleEquals => write!(f, "greater-than-or-equals"),
         }
     }
 }
@@ -199,9 +211,6 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             ';' => {
                 tokens.push(Token::new(TokenKind::Semicolon, source.span(start_index, 1)))
             },
-            '=' => {
-                tokens.push(Token::new(TokenKind::Equals, source.span(start_index, 1)))
-            },
             '.' => {
                 tokens.push(Token::new(TokenKind::Dot, source.span(start_index, 1)))
             }
@@ -221,6 +230,31 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             '*' => {
                 tokens.push(Token::new(TokenKind::Star, source.span(start_index, 1)))
             }
+
+            '=' => {
+                if chars.peek().is_some_and(|(_, c)| *c == '=') {
+                    chars.next().unwrap();
+                    tokens.push(Token::new(TokenKind::DoubleEquals, source.span(start_index, 2)))
+                } else {
+                    tokens.push(Token::new(TokenKind::Equals, source.span(start_index, 1)))
+                }
+            },
+            '<' => {
+                if chars.peek().is_some_and(|(_, c)| *c == '=') {
+                    chars.next().unwrap();
+                    tokens.push(Token::new(TokenKind::LAngleEquals, source.span(start_index, 2)))
+                } else {
+                    tokens.push(Token::new(TokenKind::LAngle, source.span(start_index, 1)))
+                }
+            },
+            '>' => {
+                if chars.peek().is_some_and(|(_, c)| *c == '=') {
+                    chars.next().unwrap();
+                    tokens.push(Token::new(TokenKind::RAngleEquals, source.span(start_index, 2)))
+                } else {
+                    tokens.push(Token::new(TokenKind::RAngle, source.span(start_index, 1)))
+                }
+            },
 
             _ if char.is_whitespace() => {
                 // Skip
