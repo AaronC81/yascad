@@ -198,7 +198,7 @@ impl Interpreter {
 
                 // Not `physical_manifolds` because applying an operator to a virtual manifold is
                 // allowed
-                let manifold_children = self.filter_objects_to_manifolds(all_children);
+                let manifold_children = self.filter_objects_to_geometry(all_children);
 
                 let it_manifold =
                     if manifold_children.len() == 1 {
@@ -438,10 +438,10 @@ impl Interpreter {
     }
 
     /// Given a list of objects, filter it down to only manifolds, and return them.
-    fn filter_objects_to_manifolds(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
+    fn filter_objects_to_geometry(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
         objects.into_iter()
             .filter_map(|child|
-                if let Object::Manifold(index) = child {
+                if let Object::Manifold(index) | Object::CrossSection(index) = child {
                     Some(index)
                 } else {
                     None
@@ -452,7 +452,7 @@ impl Interpreter {
 
     /// Given a list of objects, filter it down to only the *physical* geometries, and return them.
     fn filter_objects_to_physical_geometries(&self, objects: Vec<Object>) -> Vec<GeometryTableIndex> {
-        self.filter_objects_to_manifolds(objects)
+        self.filter_objects_to_geometry(objects)
             .into_iter()
             .filter(|index| self.manifold_table.get_disposition(index) == GeometryDisposition::Physical)
             .collect()
