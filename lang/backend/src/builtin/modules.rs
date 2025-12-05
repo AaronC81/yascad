@@ -89,9 +89,9 @@ fn children_definition() -> ModuleDefinition {
 
 fn __debug_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::empty(),
+        parameters: Parameters::required(vec!["o".to_owned()]),
         action: &|_, arguments, _, _| {
-            println!("{arguments:#?}");
+            println!("{:#?}", arguments["o"]);
             Ok(Object::Null)
         },
     }
