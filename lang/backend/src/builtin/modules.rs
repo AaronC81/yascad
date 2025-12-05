@@ -48,6 +48,16 @@ fn square_definition() -> ModuleDefinition {
     }
 }
 
+fn circle_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: Parameters::required(vec!["r".to_owned()]),
+        action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
+            let radius = arguments["r"].as_number(span)?;
+            Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::circle(radius, interpreter.circle_segments), GeometryDisposition::Physical)))
+        }
+    }
+}
+
 fn copy_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: Parameters::required(vec!["source".to_owned()]),
@@ -105,6 +115,7 @@ pub fn get_builtin_module(name: &str) -> Option<ModuleDefinition> {
         "cube" => Some(cube_definition()),
         "cylinder" => Some(cylinder_definition()),
         "square" => Some(square_definition()),
+        "circle" => Some(circle_definition()),
         "copy" => Some(copy_definition()),
         "children" => Some(children_definition()),
         "__debug" => Some(__debug_definition()),
