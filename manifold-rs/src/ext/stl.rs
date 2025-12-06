@@ -10,10 +10,29 @@ pub struct Stl {
 }
 
 /// A single triangle, defined by three points and a normal, in an STL model.
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 struct StlTriangle {
     normal: Vec3<f32>,
     points: [Vec3<f32>; 3],
+}
+
+impl StlTriangle {
+    /// Process the triangle to convert any occurrence of -0 into 0.
+    pub fn normalise_zeroes(self) -> Self {
+        fn normalise_zero(value: f32) -> f32 {
+            if value == -0.0 { 0.0 } else { value }
+        }
+
+        let [x, y, z] = self.points;
+        Self {
+            normal: self.normal.map(normalise_zero),
+            points: [
+                x.map(normalise_zero),
+                y.map(normalise_zero),
+                z.map(normalise_zero),
+            ],
+        }
+    }
 }
 
 impl Stl {
@@ -36,6 +55,12 @@ impl Stl {
     /// If the source of the triangles is unstable but you'd like a diffable STL, you can sort them.
     /// The order of triangles has no effect on the STL behaviour.
     pub fn sort(&mut self) {
+        // First convert -0 to 0 - Manifold is inconsistent in which is used
+        for tri in &mut self.triangles {
+            *tri = tri.normalise_zeroes();
+        }
+
+        // Sort triangles based on all of their properties
         self.triangles.sort_by(|a, b| a.partial_cmp(b).expect("NaN not permitted in triangle"));
 
         for tri in &mut self.triangles {
@@ -45,8 +70,6 @@ impl Stl {
             //
             // To achieve a consistent ordering, rotate the points so that the 'lowest' one (as
             // defined by PartialOrd) is at the beginning.
-            //
-            // We need to think of a consistent way to order these. Manifold isn't consistent itself.
             let mut min_point_index = 0;
             for point_index in 1..=2 {
                 if     tri.points[point_index].x < tri.points[min_point_index].x

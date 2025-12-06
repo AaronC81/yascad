@@ -13,6 +13,14 @@ impl<T> Vec3<T> {
     pub fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
     }
+
+    pub fn map<R>(self, func: impl Fn(T) -> R) -> Vec3<R> {
+        Vec3 {
+            x: func(self.x),
+            y: func(self.y),
+            z: func(self.z),
+        }
+    }
 }
 
 impl<T: Default> Vec3<T> {
@@ -57,6 +65,13 @@ pub struct Vec2<T> {
 impl<T> Vec2<T> {
     pub fn new(x: T, y: T) -> Self {
         Self { x, y }
+    }
+
+    pub fn map<R>(self, func: impl Fn(T) -> R) -> Vec2<R> {
+        Vec2 {
+            x: func(self.x),
+            y: func(self.y),
+        }
     }
 }
 
