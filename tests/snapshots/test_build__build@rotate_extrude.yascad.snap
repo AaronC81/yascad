@@ -1,6 +1,5 @@
 ---
 source: tests/test_build.rs
-assertion_line: 22
 expression: text_stl
 input_file: tests/inputs/rotate_extrude.yascad
 extension: stl
