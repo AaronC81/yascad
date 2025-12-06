@@ -19,6 +19,7 @@ impl Node {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeKind {
     Identifier(String),
+    NullLiteral,
     NumberLiteral(f64),
     BooleanLiteral(bool),
     VectorLiteral(Vec<Node>),
@@ -569,6 +570,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
             TokenKind::KwFalse => {
                 Some((Node::new(NodeKind::BooleanLiteral(false), span), StatementTerminator::NeedsSemicolon))
+            }
+
+            // `undef` is interpreted as `null` as an OpenSCAD compatibility/familiarity measure.
+            //
+            // Calling it `undef` isn't really appropriate for us, because *undef*ined stuff is an
+            // error rather than evaluating to it.
+            TokenKind::KwNull | TokenKind::KwUndef => {
+                Some((Node::new(NodeKind::NullLiteral, span), StatementTerminator::NeedsSemicolon))
             }
 
             _ => {

@@ -134,6 +134,10 @@ impl Interpreter {
                 }
             },
 
+            NodeKind::NullLiteral => {
+                Ok(Object::Null)
+            },
+
             NodeKind::NumberLiteral(num) => {
                 Ok(Object::Number(*num))
             },
