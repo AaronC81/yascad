@@ -1,0 +1,11 @@
+// Regression test - there used to be an issue which made stacked operations on 2D cross-sections
+// produce an error.
+
+rounded_corner_size = 6;
+rotation = 90;
+
+translate([-rounded_corner_size/2, -rounded_corner_size/2])
+difference() {
+    square([rounded_corner_size, rounded_corner_size]);
+    circle(r=rounded_corner_size);
+}

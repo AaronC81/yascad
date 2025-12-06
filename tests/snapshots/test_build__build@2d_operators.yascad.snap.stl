@@ -1,0 +1,170 @@
+solid YASCADText
+facet normal -0.9876883 -0.15643443 -0
+  outer loop
+    vertex 3 -3 0
+    vertex 2.7063391 -1.145898 0.01
+    vertex 2.7063391 -1.145898 0
+  endloop
+endfacet
+facet normal -0.9876883 -0.15643443 -0
+  outer loop
+    vertex 3 -3 0
+    vertex 3 -3 0.01
+    vertex 2.7063391 -1.145898 0.01
+  endloop
+endfacet
+facet normal -0.89100647 -0.45399046 -0
+  outer loop
+    vertex 2.7063391 -1.145898 0
+    vertex 1.854102 0.5267115 0.01
+    vertex 1.854102 0.5267115 0
+  endloop
+endfacet
+facet normal -0.89100647 -0.45399046 -0
+  outer loop
+    vertex 2.7063391 -1.145898 0
+    vertex 2.7063391 -1.145898 0.01
+    vertex 1.854102 0.5267115 0.01
+  endloop
+endfacet
+facet normal -0.7071068 -0.7071068 -0
+  outer loop
+    vertex 1.854102 0.5267115 0
+    vertex 0.5267115 1.854102 0.01
+    vertex 0.5267115 1.854102 0
+  endloop
+endfacet
+facet normal -0.7071068 -0.7071068 -0
+  outer loop
+    vertex 1.854102 0.5267115 0
+    vertex 1.854102 0.5267115 0.01
+    vertex 0.5267115 1.854102 0.01
+  endloop
+endfacet
+facet normal -0.45399046 -0.89100647 -0
+  outer loop
+    vertex 0.5267115 1.854102 0
+    vertex -1.145898 2.7063391 0.01
+    vertex -1.145898 2.7063391 0
+  endloop
+endfacet
+facet normal -0.45399046 -0.89100647 -0
+  outer loop
+    vertex 0.5267115 1.854102 0
+    vertex 0.5267115 1.854102 0.01
+    vertex -1.145898 2.7063391 0.01
+  endloop
+endfacet
+facet normal -0.15643443 -0.9876883 -0
+  outer loop
+    vertex -1.145898 2.7063391 0
+    vertex -3 3 0.01
+    vertex -3 3 0
+  endloop
+endfacet
+facet normal -0.15643443 -0.9876883 -0
+  outer loop
+    vertex -1.145898 2.7063391 0
+    vertex -1.145898 2.7063391 0.01
+    vertex -3 3 0.01
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 2.7063391 -1.145898 0
+    vertex 3 3 0
+    vertex 3 -3 0
+  endloop
+endfacet
+facet normal -0 0 -1
+  outer loop
+    vertex -3 3 0
+    vertex 3 3 0
+    vertex -1.145898 2.7063391 0
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex -1.145898 2.7063391 0
+    vertex 3 3 0
+    vertex 0.5267115 1.854102 0
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 0.5267115 1.854102 0
+    vertex 3 3 0
+    vertex 1.854102 0.5267115 0
+  endloop
+endfacet
+facet normal 0 0 -1
+  outer loop
+    vertex 1.854102 0.5267115 0
+    vertex 3 3 0
+    vertex 2.7063391 -1.145898 0
+  endloop
+endfacet
+facet normal 0 -0 1
+  outer loop
+    vertex 2.7063391 -1.145898 0.01
+    vertex 3 -3 0.01
+    vertex 3 3 0.01
+  endloop
+endfacet
+facet normal 0 0 1
+  outer loop
+    vertex -1.145898 2.7063391 0.01
+    vertex 3 3 0.01
+    vertex -3 3 0.01
+  endloop
+endfacet
+facet normal 0 0 1
+  outer loop
+    vertex 0.5267115 1.854102 0.01
+    vertex 3 3 0.01
+    vertex -1.145898 2.7063391 0.01
+  endloop
+endfacet
+facet normal 0 0 1
+  outer loop
+    vertex 1.854102 0.5267115 0.01
+    vertex 3 3 0.01
+    vertex 0.5267115 1.854102 0.01
+  endloop
+endfacet
+facet normal 0 0 1
+  outer loop
+    vertex 2.7063391 -1.145898 0.01
+    vertex 3 3 0.01
+    vertex 1.854102 0.5267115 0.01
+  endloop
+endfacet
+facet normal -0 1 0
+  outer loop
+    vertex -3 3 0
+    vertex -3 3 0.01
+    vertex 3 3 0.01
+  endloop
+endfacet
+facet normal 0 1 0
+  outer loop
+    vertex -3 3 0
+    vertex 3 3 0.01
+    vertex 3 3 0
+  endloop
+endfacet
+facet normal 1 0 0
+  outer loop
+    vertex 3 -3 0
+    vertex 3 3 0
+    vertex 3 -3 0.01
+  endloop
+endfacet
+facet normal 1 0 0
+  outer loop
+    vertex 3 3 0
+    vertex 3 3 0.01
+    vertex 3 -3 0.01
+  endloop
+endfacet
+endsolid YASCADText
