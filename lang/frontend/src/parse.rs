@@ -88,41 +88,6 @@ pub struct Parameters {
     pub optional: Vec<(String, Node)>,
 }
 
-impl Parameters {
-    pub fn new(required: Vec<String>, optional: Vec<(String, Node)>) -> Self {
-        Self { required, optional }
-    }
-
-    pub fn empty() -> Self {
-        Self::new(vec![], vec![])
-    }
-
-    pub fn required(required: Vec<String>) -> Self {
-        Self::new(required, vec![])
-    }
-
-    /// The total number of required and optional arguments.
-    pub fn max_len(&self) -> usize {
-        self.required.len() + self.optional.len()
-    }
-
-    /// The number of required arguments.
-    pub fn min_len(&self) -> usize {
-        self.required.len()
-    }
-
-    /// The range of allowed argument lengths.
-    pub fn len_range(&self) -> RangeInclusive<usize> {
-        (self.min_len())..=(self.max_len())
-    }
-
-    /// All parameters, required and optional, in the order they'd be expected to be specified.
-    pub fn ordered_names(&self) -> impl Iterator<Item = String> {
-        self.required.iter().cloned()
-            .chain(self.optional.iter().map(|(name, _)| name.clone()))
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Arguments {
     pub positional: Vec<Node>,

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use manifold_rs::{CrossSection, Manifold};
-use yascad_frontend::{InputSourceSpan, Parameters};
+use yascad_frontend::InputSourceSpan;
 
-use crate::{Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
+use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
 
 /// Defines the parameters and behaviour of a built-in module.
 /// 
@@ -11,13 +11,13 @@ use crate::{Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{Geomet
 /// in `parameters` definitely exist.
 #[derive(Clone)]
 pub struct ModuleDefinition {
-    pub parameters: Parameters,
+    pub parameters: EvaluatedParameters,
     pub action: &'static dyn Fn(&mut Interpreter, HashMap<String, Object>, Option<&[GeometryTableIndex]>, InputSourceSpan) -> Result<Object, RuntimeError>,
 }
 
 fn cube_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::required(vec!["size".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["size".to_owned()]),
         action: &|interpreter, arguments, _, span| {
             let (x, y, z) = match &arguments["size"] {
                 Object::Vector(_) => arguments["size"].as_3d_vector(span)?,
@@ -36,7 +36,7 @@ fn cube_definition() -> ModuleDefinition {
 
 fn cylinder_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::required(vec!["h".to_owned(), "r".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["h".to_owned(), "r".to_owned()]),
         action: &|interpreter, arguments, _, span| {
             // TODO: needs to support diameters or cone forms
             let height = arguments["h"].as_number(span.clone())?;
@@ -49,7 +49,7 @@ fn cylinder_definition() -> ModuleDefinition {
 
 fn square_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::required(vec!["size".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["size".to_owned()]),
         action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
             let (x, y) = match &arguments["size"] {
                 Object::Vector(_) => arguments["size"].as_2d_vector(span)?,
@@ -68,7 +68,7 @@ fn square_definition() -> ModuleDefinition {
 
 fn circle_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::required(vec!["r".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["r".to_owned()]),
         action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
             let radius = arguments["r"].as_number(span)?;
             Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::circle(radius, interpreter.circle_segments), GeometryDisposition::Physical)))
@@ -78,7 +78,7 @@ fn circle_definition() -> ModuleDefinition {
 
 fn copy_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::required(vec!["source".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["source".to_owned()]),
         action: &|interpreter, arguments, _, span| {
             let manifold_index = arguments["source"].clone().into_manifold(span)?;
             let manifold = interpreter.manifold_table.get(&manifold_index);
@@ -93,7 +93,7 @@ fn copy_definition() -> ModuleDefinition {
 
 fn children_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::empty(),
+        parameters: EvaluatedParameters::empty(),
         action: &|interpreter, _, operator_children, span| {
             let Some(children) = operator_children
             else {
@@ -117,7 +117,7 @@ fn children_definition() -> ModuleDefinition {
 
 fn __debug_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: Parameters::required(vec!["o".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["o".to_owned()]),
         action: &|_, arguments, _, _| {
             println!("{:#?}", arguments["o"]);
             Ok(Object::Null)

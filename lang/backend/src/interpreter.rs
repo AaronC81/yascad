@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, iter::zip, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, iter::zip, ops::RangeInclusive, rc::Rc};
 
 use manifold_rs::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
@@ -225,11 +225,8 @@ impl Interpreter {
                 // directly given the physical manifold indexes. They can do whatever they like with
                 // them.
                 match self.get_existing_name(name, ctx, node.span.clone())? {
-                    NameDefinition::UserDefinedOperator(user_operator) => {
-                        let NodeKind::OperatorDefinition { body, parameters, name: _ } = &user_operator.kind.clone()
-                        else { unreachable!() };
-
-                        let arguments = self.match_arguments_to_parameters(arguments, parameters, ctx, node.span.clone())?;
+                    NameDefinition::UserDefinedOperator { parameters, body } => {
+                        let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
 
                         let temporary_virtual_manifolds = manifold_children.into_iter()
                             .map(|index| {
@@ -239,7 +236,7 @@ impl Interpreter {
                             .collect::<Vec<_>>();
 
                         let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
-                            body, ctx, Some(&temporary_virtual_manifolds), arguments, node.span.clone()
+                            &body, ctx, Some(&temporary_virtual_manifolds), arguments, node.span.clone()
                         )?;
 
                         for index in temporary_virtual_manifolds {
@@ -250,7 +247,7 @@ impl Interpreter {
                     }
 
                     NameDefinition::BuiltinOperator(op) => {
-                        let arguments = self.match_arguments_to_parameters(arguments, &op.parameters, ctx, node.span.clone())?;
+                        let arguments = self.match_arguments_to_parameters(arguments, op.parameters, node.span.clone())?;
                         let (geom, disp) = (op.action)(self, arguments, manifold_children, node.span.clone())?;
                         Ok(self.manifold_table.add_into_object(geom, disp))
                     }
@@ -270,17 +267,14 @@ impl Interpreter {
 
                 match self.get_existing_name(name, ctx, node.span.clone())? {
                     NameDefinition::BuiltinModule(module) => {
-                        let arguments = self.match_arguments_to_parameters(arguments, &module.parameters, ctx, node.span.clone())?;
+                        let arguments = self.match_arguments_to_parameters(arguments, module.parameters, node.span.clone())?;
                         (module.action)(self, arguments, ctx.operator_children, node.span.clone())
                     }
 
-                    NameDefinition::UserDefinedModule(user_module) => {
-                        let NodeKind::ModuleDefinition { body, parameters, name: _ } = &user_module.kind.clone()
-                        else { unreachable!() };
-
-                        let arguments = self.match_arguments_to_parameters(arguments, parameters, ctx, node.span.clone())?;
+                    NameDefinition::UserDefinedModule { parameters, body } => {
+                        let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
                         let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
-                            body, ctx, None, arguments, node.span.clone()
+                            &body, ctx, None, arguments, node.span.clone()
                         )?;
 
                         Ok(self.manifold_table.add_into_object(geom, disp))
@@ -353,13 +347,23 @@ impl Interpreter {
                 Ok(Object::Number(-value))
             },
 
-            NodeKind::OperatorDefinition { name, .. } => {
-                self.add_name(name, NameDefinition::UserDefinedOperator(node.clone()), &ctx, node.span.clone())?;
+            NodeKind::OperatorDefinition { name, parameters, body } => {
+                let parameters = self.interpret_parameters(parameters, ctx)?;
+                self.add_name(
+                    name,
+                    NameDefinition::UserDefinedOperator { parameters, body: body.clone() },
+                    &ctx, node.span.clone()
+                )?;
                 Ok(Object::Null)
             },
 
-            NodeKind::ModuleDefinition { name, .. } => {
-                self.add_name(name, NameDefinition::UserDefinedModule(node.clone()), &ctx, node.span.clone())?;
+            NodeKind::ModuleDefinition { name, parameters, body } => {
+                let parameters = self.interpret_parameters(parameters, ctx)?;
+                self.add_name(
+                    name,
+                    NameDefinition::UserDefinedModule { parameters, body: body.clone() },
+                    &ctx, node.span.clone()
+                )?;
                 Ok(Object::Null)
             },
 
@@ -401,6 +405,18 @@ impl Interpreter {
         nodes.iter()
             .map(|node| self.interpret(node, ctx))
             .collect()
+    }
+
+    /// Evaluate any default parameter values.
+    fn interpret_parameters(&mut self, parameters: &Parameters, ctx: &ExecutionContext) -> Result<EvaluatedParameters, RuntimeError> {
+        Ok(EvaluatedParameters {
+            required: parameters.required.clone(),
+            optional: parameters.optional.iter()
+                .map(|(name, node)| 
+                    self.interpret(node, ctx).map(|obj| (name.to_owned(), obj))
+                )
+                .collect::<Result<_, _>>()?,
+        })
     }
 
     /// Execute a list of nodes and collect any geometry that they generate into a single union'ed
@@ -476,16 +492,16 @@ impl Interpreter {
             return Some(NameDefinition::BuiltinModule(module))
         }
 
-        if let Some(module) = ctx.lexical_scope.borrow().get_module(name) {
-            return Some(NameDefinition::UserDefinedModule(module))
+        if let Some((parameters, body)) = ctx.lexical_scope.borrow().get_module(name) {
+            return Some(NameDefinition::UserDefinedModule { parameters, body })
         }
 
         if let Some(operator) = builtin::get_builtin_operator(name) {
             return Some(NameDefinition::BuiltinOperator(operator))
         }
 
-        if let Some(operator) = ctx.lexical_scope.borrow().get_operator(name) {
-            return Some(NameDefinition::UserDefinedOperator(operator))
+        if let Some((parameters, body)) = ctx.lexical_scope.borrow().get_operator(name) {
+            return Some(NameDefinition::UserDefinedOperator { parameters, body })
         }
 
         None
@@ -510,11 +526,11 @@ impl Interpreter {
             NameDefinition::Binding(object) => {
                 ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), object);
             }
-            NameDefinition::UserDefinedOperator(node) => {
-                ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), node);
+            NameDefinition::UserDefinedOperator { parameters, body } => {
+                ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), parameters, body);
             }
-            NameDefinition::UserDefinedModule(node) => {
-                ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), node);
+            NameDefinition::UserDefinedModule  { parameters, body } => {
+                ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), parameters, body);
             }
 
             NameDefinition::Argument(_)
@@ -539,7 +555,7 @@ impl Interpreter {
 
     /// Given a list of arguments and parameters, match the arguments to parameters, and return a
     /// set of parameter names matched to argument values (or defaults).
-    fn match_arguments_to_parameters(&mut self, arguments: EvaluatedArguments, parameters: &Parameters, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
+    fn match_arguments_to_parameters(&mut self, arguments: EvaluatedArguments, parameters: EvaluatedParameters, span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
         // TODO: validate on definition that parameter names are unique
 
         // TODO: needs changing:
@@ -608,8 +624,7 @@ impl Interpreter {
         // For any optional parameters where values weren't given, instantiate the default
         for (name, default) in &parameters.optional {
             if !map.contains_key(name) {
-                let default = self.interpret(default, ctx)?;
-                map.insert(name.to_owned(), (default, Location::Named));
+                map.insert(name.to_owned(), (default.clone(), Location::Named));
             }
         }
 
@@ -648,10 +663,16 @@ pub enum NameDefinition {
     Argument(Object),
 
     BuiltinModule(ModuleDefinition),
-    UserDefinedModule(Node),
+    UserDefinedModule {
+        parameters: EvaluatedParameters,
+        body: Vec<Node>,
+    },
 
     BuiltinOperator(OperatorDefinition),
-    UserDefinedOperator(Node),
+    UserDefinedOperator {
+        parameters: EvaluatedParameters,
+        body: Vec<Node>,
+    },
 }
 
 impl NameDefinition {
@@ -660,9 +681,9 @@ impl NameDefinition {
             NameDefinition::Binding(_) => "binding",
             NameDefinition::Argument(_) => "parameter",
             NameDefinition::BuiltinModule(_) => "built-in module",
-            NameDefinition::UserDefinedModule(_) => "user-defined module",
+            NameDefinition::UserDefinedModule { .. } => "user-defined module",
             NameDefinition::BuiltinOperator(_) => "built-in operator",
-            NameDefinition::UserDefinedOperator(_) => "user-defined operator",
+            NameDefinition::UserDefinedOperator { .. } => "user-defined operator",
         }.to_string()
     }
 }
@@ -671,4 +692,46 @@ impl NameDefinition {
 pub struct EvaluatedArguments {
     positional: Vec<Object>,
     named: Vec<(String, Object)>,
+}
+
+/// A collection of parameters with evaluated defaults.
+#[derive(Clone, Debug)]
+pub struct EvaluatedParameters {
+    required: Vec<String>,
+    optional: Vec<(String, Object)>,
+}
+
+impl EvaluatedParameters {
+    pub fn new(required: Vec<String>, optional: Vec<(String, Object)>) -> Self {
+        Self { required, optional }
+    }
+
+    pub fn empty() -> Self {
+        Self::new(vec![], vec![])
+    }
+
+    pub fn required(required: Vec<String>) -> Self {
+        Self::new(required, vec![])
+    }
+
+    /// The total number of required and optional arguments.
+    pub fn max_len(&self) -> usize {
+        self.required.len() + self.optional.len()
+    }
+
+    /// The number of required arguments.
+    pub fn min_len(&self) -> usize {
+        self.required.len()
+    }
+
+    /// The range of allowed argument lengths.
+    pub fn len_range(&self) -> RangeInclusive<usize> {
+        (self.min_len())..=(self.max_len())
+    }
+
+    /// All parameters, required and optional, in the order they'd be expected to be specified.
+    pub fn ordered_names(&self) -> impl Iterator<Item = String> {
+        self.required.iter().cloned()
+            .chain(self.optional.iter().map(|(name, _)| name.clone()))
+    }
 }

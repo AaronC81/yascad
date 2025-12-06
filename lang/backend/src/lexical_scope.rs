@@ -1,14 +1,14 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use yascad_frontend::{Node, NodeKind};
+use yascad_frontend::Node;
 
-use crate::object::Object;
+use crate::{EvaluatedParameters, object::Object};
 
 #[derive(Debug)]
 pub struct LexicalScope {
     bindings: HashMap<String, Object>,
-    operators: HashMap<String, Node>, // Always `Node::OperatorDefinition`
-    modules: HashMap<String, Node>, // Always `Node::ModuleDefinition`
+    operators: HashMap<String, (EvaluatedParameters, Vec<Node>)>,
+    modules: HashMap<String, (EvaluatedParameters, Vec<Node>)>,
     pub parent: Option<Rc<RefCell<LexicalScope>>>,
 }
 
@@ -55,9 +55,9 @@ impl LexicalScope {
         self.bindings.insert(name, value);
     }
 
-    pub fn get_operator(&self, name: &str) -> Option<Node> {
-        if let Some(node) = self.operators.get(name) {
-            return Some(node.clone());
+    pub fn get_operator(&self, name: &str) -> Option<(EvaluatedParameters, Vec<Node>)> {
+        if let Some(item) = self.operators.get(name) {
+            return Some(item.clone());
         }
 
         if let Some(parent) = self.parent.as_ref() {
@@ -67,9 +67,9 @@ impl LexicalScope {
         }
     }
 
-    pub fn get_module(&self, name: &str) -> Option<Node> {
-        if let Some(node) = self.modules.get(name) {
-            return Some(node.clone());
+    pub fn get_module(&self, name: &str) -> Option<(EvaluatedParameters, Vec<Node>)> {
+        if let Some(item) = self.modules.get(name) {
+            return Some(item.clone());
         }
 
         if let Some(parent) = self.parent.as_ref() {
@@ -83,35 +83,23 @@ impl LexicalScope {
     /// 
     /// Panics if an operator with this name already exists. It's the caller's responsibility to
     /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
-    /// 
-    /// Also panics if the definition is not of variant [`NodeKind::OperatorDefinition`].
-    pub fn add_operator(&mut self, name: String, definition: Node) {
-        if !matches!(definition.kind, NodeKind::OperatorDefinition { .. }) {
-            panic!("lexical scope operators must have NodeKind::OperatorDefinition")
-        }
-
+    pub fn add_operator(&mut self, name: String, parameters: EvaluatedParameters, body: Vec<Node>) {
         if self.get_operator(&name).is_some() {
             panic!("operator {name} already exists");
         }
 
-        self.operators.insert(name, definition);
+        self.operators.insert(name, (parameters, body));
     }
 
     /// Add a new operator definition to this scope.
     /// 
     /// Panics if an operator with this name already exists. It's the caller's responsibility to
     /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
-    /// 
-    /// Also panics if the definition is not of variant [`NodeKind::ModuleDefinition`].
-    pub fn add_module(&mut self, name: String, definition: Node) {
-        if !matches!(definition.kind, NodeKind::ModuleDefinition { .. }) {
-            panic!("lexical scope modules must have NodeKind::ModuleDefinition")
-        }
-
+    pub fn add_module(&mut self, name: String, parameters: EvaluatedParameters, body: Vec<Node>) {
         if self.get_module(&name).is_some() {
             panic!("module {name} already exists");
         }
 
-        self.modules.insert(name, definition);
+        self.modules.insert(name, (parameters, body));
     }
 }

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use manifold_rs::Manifold;
-use yascad_frontend::{InputSourceSpan, Parameters};
+use yascad_frontend::InputSourceSpan;
 
-use crate::{Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableEntry, GeometryTableIndex}, object::Object};
+use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableEntry, GeometryTableIndex}, object::Object};
 
 /// Defines the parameters and behaviour of a built-in operator.
 /// 
@@ -11,13 +11,13 @@ use crate::{Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{Geomet
 /// in `parameters` definitely exist.
 #[derive(Clone)]
 pub struct OperatorDefinition {
-    pub parameters: Parameters,
+    pub parameters: EvaluatedParameters,
     pub action: &'static dyn Fn(&mut Interpreter, HashMap<String, Object>, Vec<GeometryTableIndex>, InputSourceSpan) -> Result<(GeometryTableEntry, GeometryDisposition), RuntimeError>,
 }
 
 fn translate_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::required(vec!["v".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["v".to_owned()]),
         action: &|interpreter, arguments, children, span| {
             match interpreter.manifold_table.remove_many_into_union(children, span.clone())? {
                 (GeometryTableEntry::Manifold(manifold), d) => {
@@ -36,7 +36,7 @@ fn translate_definition() -> OperatorDefinition {
 
 fn union_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::empty(),
+        parameters: EvaluatedParameters::empty(),
         action: &|interpreter, _, children, span| {
             interpreter.manifold_table.remove_many_into_union(children, span)
         }
@@ -45,7 +45,7 @@ fn union_definition() -> OperatorDefinition {
 
 fn difference_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::empty(),
+        parameters: EvaluatedParameters::empty(),
         action: &|interpreter, _, mut children, span| {
             if children.is_empty() {
                 return Err(RuntimeError::new(RuntimeErrorKind::ChildrenExpected, span))
@@ -76,7 +76,7 @@ fn difference_definition() -> OperatorDefinition {
 
 fn linear_extrude_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::required(vec!["h".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["h".to_owned()]),
         action: &|interpreter, arguments, children, span| {
             let height = arguments["h"].as_number(span.clone())?;
 
@@ -91,7 +91,7 @@ fn linear_extrude_definition() -> OperatorDefinition {
 
 fn rotate_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::required(vec!["v".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["v".to_owned()]),
         action: &|interpreter, arguments, children, span| {
             let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
 
@@ -111,7 +111,7 @@ fn rotate_definition() -> OperatorDefinition {
 
 fn scale_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::required(vec!["v".to_owned()]),
+        parameters: EvaluatedParameters::required(vec!["v".to_owned()]),
         action: &|interpreter, arguments, children, span| {
             let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
 
@@ -131,7 +131,7 @@ fn scale_definition() -> OperatorDefinition {
 
 fn buffer_definition() -> OperatorDefinition {
     OperatorDefinition {
-        parameters: Parameters::empty(),
+        parameters: EvaluatedParameters::empty(),
         action: &|interpreter, _, children, span| {
             let (geom, _) = interpreter.manifold_table.remove_many_into_union(children, span)?;
             Ok((geom, GeometryDisposition::Virtual))
