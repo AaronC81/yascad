@@ -84,6 +84,14 @@ impl CrossSection {
         }
     }
 
+    /// Create a new cross section by mirroring this one. The given x/y describe a vector through
+    /// the origin, which the cross section is mirrored "through".
+    pub fn mirror(&self, x: f64, y: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_cross_section_mirror(ptr, self.ptr, x, y))
+        }
+    }
 
     /// Create a new cross section by subtracting another manifold from this one.
     pub fn difference(&self, other: &CrossSection) -> Self {

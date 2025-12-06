@@ -97,6 +97,15 @@ impl Manifold {
         }
     }
 
+    /// Create a new manifold by mirroring this one. The given x/y/z describe a vector through the
+    /// origin, which the manifold is mirrored "through".
+    pub fn mirror(&self, x: f64, y: f64, z: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_mirror(ptr, self.ptr, x, y, z))
+        }
+    }
+
     /// Create a new manifold by subtracting another manifold from this one.
     pub fn difference(&self, other: &Manifold) -> Self {
         unsafe {

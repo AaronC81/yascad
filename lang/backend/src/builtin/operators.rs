@@ -129,6 +129,26 @@ fn scale_definition() -> OperatorDefinition {
     }
 }
 
+fn mirror_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: EvaluatedParameters::required(vec!["v".to_owned()]),
+        action: &|interpreter, arguments, children, span| {
+            let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
+
+            Ok((match geom {
+                GeometryTableEntry::Manifold(manifold) => {
+                    let (x, y, z) = arguments["v"].as_3d_vector(span.clone())?;
+                    GeometryTableEntry::Manifold(manifold.mirror(x, y, z))
+                }
+                GeometryTableEntry::CrossSection(cross_section) => {
+                    let (x, y) = arguments["v"].as_2d_vector(span.clone())?;
+                    GeometryTableEntry::CrossSection(cross_section.mirror(x, y))
+                }
+            }, disp))
+        },
+    }
+}
+
 fn buffer_definition() -> OperatorDefinition {
     OperatorDefinition {
         parameters: EvaluatedParameters::empty(),
@@ -150,6 +170,7 @@ pub fn get_builtin_operator(name: &str) -> Option<OperatorDefinition> {
         "linear_extrude" => Some(linear_extrude_definition()),
         "rotate" => Some(rotate_definition()),
         "scale" => Some(scale_definition()),
+        "mirror" => Some(mirror_definition()),
         "buffer" => Some(buffer_definition()),
 
         _ => None,
