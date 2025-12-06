@@ -73,6 +73,23 @@ impl Manifold {
         }
     }
 
+    /// Create a new manifold by "wrapping" a list of [`Polygons`] around the Z axis, for a certain
+    /// number of degrees.
+    /// 
+    /// For example, revolving a circle by 360 degrees creates a donut.
+    /// 
+    /// Effectively, 2D shapes on the X/Y plane are rotated to be flat on the Z plane, and then
+    /// pulled counter-clockwise around the Z axis for the given angle.
+    /// 
+    /// If the shape crosses into the negative X axis, the negative parts will be sliced off by
+    /// the extrusion.
+    pub fn revolve(polygons: Polygons, segments: i32, degrees: f64) -> Self {
+        unsafe {
+            Self::alloc_build(|ptr|
+                raw::manifold_revolve(ptr, polygons.ptr, segments, degrees))
+        }
+    }
+
     /// Create a new manifold which is a translation of this one.
     pub fn translate(&self, x: f64, y: f64, z: f64) -> Self {
         unsafe {

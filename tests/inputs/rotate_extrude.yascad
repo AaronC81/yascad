@@ -1,0 +1,9 @@
+// Default 360
+rotate_extrude()
+translate([5, 5])
+square(3);
+
+// Partial circle
+rotate_extrude(50)
+translate([15, 15])
+circle(5);

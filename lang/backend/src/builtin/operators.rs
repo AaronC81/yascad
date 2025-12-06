@@ -89,6 +89,24 @@ fn linear_extrude_definition() -> OperatorDefinition {
     }
 }
 
+fn rotate_extrude_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: EvaluatedParameters::new(
+            vec![],
+            vec![("angle".to_owned(), Object::Number(360.0))],
+        ),
+        action: &|interpreter, arguments, children, span| {
+            let angle = arguments["angle"].as_number(span.clone())?;
+
+            let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
+            let GeometryTableEntry::CrossSection(cross_section) = geom
+            else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
+
+            Ok((GeometryTableEntry::Manifold(Manifold::revolve(cross_section.polygons(), interpreter.circle_segments, angle)), disp))
+        },
+    }
+}
+
 fn rotate_definition() -> OperatorDefinition {
     OperatorDefinition {
         parameters: EvaluatedParameters::required(vec!["v".to_owned()]),
@@ -168,6 +186,7 @@ pub fn get_builtin_operator(name: &str) -> Option<OperatorDefinition> {
         "union" => Some(union_definition()),
         "difference" => Some(difference_definition()),
         "linear_extrude" => Some(linear_extrude_definition()),
+        "rotate_extrude" => Some(rotate_extrude_definition()),
         "rotate" => Some(rotate_definition()),
         "scale" => Some(scale_definition()),
         "mirror" => Some(mirror_definition()),
