@@ -19,7 +19,16 @@ fn cube_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: Parameters::required(vec!["size".to_owned()]),
         action: &|interpreter, arguments, _, span| {
-            let (x, y, z) = arguments["size"].as_3d_vector(span)?;
+            let (x, y, z) = match &arguments["size"] {
+                Object::Vector(_) => arguments["size"].as_3d_vector(span)?,
+                Object::Number(n) => (*n, *n, *n),
+                o => {
+                    return Err(RuntimeError::new(RuntimeErrorKind::IncorrectType {
+                        expected: "number or vector".to_owned(),
+                        actual: o.describe_type()
+                    }, span))
+                }
+            };
             Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cube(x, y, z, false), GeometryDisposition::Physical)))
         },
     }
@@ -42,7 +51,16 @@ fn square_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: Parameters::required(vec!["size".to_owned()]),
         action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
-            let (x, y) = arguments["size"].as_2d_vector(span)?;
+            let (x, y) = match &arguments["size"] {
+                Object::Vector(_) => arguments["size"].as_2d_vector(span)?,
+                Object::Number(n) => (*n, *n),
+                o => {
+                    return Err(RuntimeError::new(RuntimeErrorKind::IncorrectType {
+                        expected: "number or vector".to_owned(),
+                        actual: o.describe_type()
+                    }, span))
+                }
+            };
             Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
         }
     }
