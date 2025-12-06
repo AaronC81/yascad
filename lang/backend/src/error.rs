@@ -47,6 +47,9 @@ pub enum RuntimeErrorKind {
     ChildrenInvalid,
     FlippedRange,
     Requires2DGeometry,
+
+    /// A generic error which can be triggered by user code.
+    AssertionError(String),
 }
 
 impl Display for RuntimeErrorKind {
@@ -87,6 +90,8 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::ChildrenExpected => write!(f, "this operation requires at least one child"),
             RuntimeErrorKind::FlippedRange => write!(f, "end of range is lower than start"),
             RuntimeErrorKind::Requires2DGeometry => write!(f, "this operation requires 2D geometry, but 3D was provided"),
+
+            RuntimeErrorKind::AssertionError(err) => write!(f, "{err}"),
         }
     }
 }

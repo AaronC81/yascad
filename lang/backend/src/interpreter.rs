@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, iter::zip, ops::RangeInclusive, rc::Rc};
+use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeInclusive, rc::Rc};
 
 use manifold_rs::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
@@ -416,6 +416,7 @@ impl Interpreter {
                     self.interpret(node, ctx).map(|obj| (name.to_owned(), obj))
                 )
                 .collect::<Result<_, _>>()?,
+            optional_named_only: vec![],
         })
     }
 
@@ -558,13 +559,6 @@ impl Interpreter {
     fn match_arguments_to_parameters(&mut self, arguments: EvaluatedArguments, parameters: EvaluatedParameters, span: InputSourceSpan) -> Result<HashMap<String, Object>, RuntimeError> {
         // TODO: validate on definition that parameter names are unique
 
-        // TODO: needs changing:
-        //  / Check no duplicate argument names
-        //  - Check that all required parameters are handled - either as positional XOR named (NOT both)
-        //  - Check that optional parameters, if specified, are positional XOR named (NOT both)
-        //  - Check all named parameters actually exist
-        //  - Instantiate optional defaults
-
         // Check that named arguments are specified no more than once
         for (name, _) in &arguments.named {
             let count_args_with_name = arguments.named.iter()
@@ -591,14 +585,14 @@ impl Interpreter {
         // (We enforce in the parser that required arguments come before optional arguments)
         enum Location { Positional, Named }
         let mut map = HashMap::new();
-        for (arg, param) in zip(&arguments.positional, parameters.ordered_names()) {
+        for (arg, param) in zip(&arguments.positional, parameters.ordered_positional_names()) {
             map.insert(param, (arg.clone(), Location::Positional));
         }
 
         // Now map named arguments to parameters, validating the parameters weren't already assigned
         // and do actually exist
         for (name, arg) in &arguments.named {
-            if parameters.ordered_names().find(|n| n == name).is_none() {
+            if !parameters.names().contains(name) {
                 return Err(RuntimeError::new(RuntimeErrorKind::UndefinedNamedArgument(name.to_owned()), span))
             }
 
@@ -622,7 +616,7 @@ impl Interpreter {
         }
 
         // For any optional parameters where values weren't given, instantiate the default
-        for (name, default) in &parameters.optional {
+        for (name, default) in parameters.all_optionals() {
             if !map.contains_key(name) {
                 map.insert(name.to_owned(), (default.clone(), Location::Named));
             }
@@ -697,13 +691,24 @@ pub struct EvaluatedArguments {
 /// A collection of parameters with evaluated defaults.
 #[derive(Clone, Debug)]
 pub struct EvaluatedParameters {
-    required: Vec<String>,
-    optional: Vec<(String, Object)>,
+    pub required: Vec<String>,
+    pub optional: Vec<(String, Object)>,
+
+    /// Optional arguments which can only be specified by name, not positionally.
+    /// This is an internal language feature to support `r`/`d` parameters, and isn't usable from
+    /// language source.
+    pub optional_named_only: Vec<(String, Object)>,
 }
 
 impl EvaluatedParameters {
     pub fn new(required: Vec<String>, optional: Vec<(String, Object)>) -> Self {
-        Self { required, optional }
+        Self {
+            required,
+            optional,
+        
+            // This is so rarely used that we don't expect it in the constructor
+            optional_named_only: vec![],
+        }
     }
 
     pub fn empty() -> Self {
@@ -729,9 +734,24 @@ impl EvaluatedParameters {
         (self.min_len())..=(self.max_len())
     }
 
-    /// All parameters, required and optional, in the order they'd be expected to be specified.
-    pub fn ordered_names(&self) -> impl Iterator<Item = String> {
+    /// All positional parameters, required and optional, in the order they'd be expected to be
+    /// specified.
+    pub fn ordered_positional_names(&self) -> impl Iterator<Item = String> {
         self.required.iter().cloned()
             .chain(self.optional.iter().map(|(name, _)| name.clone()))
+    }
+
+    /// All optional parameters, both positional and named-only.
+    pub fn all_optionals(&self) -> impl Iterator<Item = &(String, Object)> {
+        self.optional.iter()
+            .chain(self.optional_named_only.iter())
+    }
+
+    /// All permissible named parameters.
+    pub fn names(&self) -> HashSet<String> {
+        self.required.iter()
+            .chain(self.all_optionals().map(|(name, _)| name))
+            .cloned()
+            .collect()
     }
 }

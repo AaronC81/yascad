@@ -36,11 +36,15 @@ fn cube_definition() -> ModuleDefinition {
 
 fn cylinder_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: EvaluatedParameters::required(vec!["h".to_owned(), "r".to_owned()]),
+        parameters: EvaluatedParameters {
+            required: vec!["h".to_owned()],
+            optional: vec![("r".to_owned(), Object::Null)],
+            optional_named_only: vec![("d".to_owned(), Object::Null)],
+        },
         action: &|interpreter, arguments, _, span| {
-            // TODO: needs to support diameters or cone forms
+            // TODO: needs to support cone forms
             let height = arguments["h"].as_number(span.clone())?;
-            let radius = arguments["r"].as_number(span.clone())?;
+            let radius = radius_argument(&arguments, span)?;
 
             Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(radius, height, interpreter.circle_segments, false), GeometryDisposition::Physical)))
         },
@@ -68,9 +72,13 @@ fn square_definition() -> ModuleDefinition {
 
 fn circle_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: EvaluatedParameters::required(vec!["r".to_owned()]),
+        parameters: EvaluatedParameters {
+            required: vec![],
+            optional: vec![("r".to_owned(), Object::Null)],
+            optional_named_only: vec![("d".to_owned(), Object::Null)],
+        },
         action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
-            let radius = arguments["r"].as_number(span)?;
+            let radius = radius_argument(&arguments, span)?;
             Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::circle(radius, interpreter.circle_segments), GeometryDisposition::Physical)))
         }
     }
@@ -122,6 +130,24 @@ fn __debug_definition() -> ModuleDefinition {
             println!("{:#?}", arguments["o"]);
             Ok(Object::Null)
         },
+    }
+}
+
+/// Given an argument map which may contain a non-null `r` or `d`, gets the radius.
+pub fn radius_argument(arguments: &HashMap<String, Object>, span: InputSourceSpan) -> Result<f64, RuntimeError> {
+    match (&arguments["r"], &arguments["d"]) {
+        (Object::Null, Object::Null) =>
+            Err(RuntimeError::new(RuntimeErrorKind::AssertionError(
+                "neither \"r\" nor \"d\" argument is given, but one must be specified".to_owned()
+            ), span)),
+        
+        (radius, Object::Null) => radius.as_number(span),
+        (Object::Null, diameter) => diameter.as_number(span).map(|n| n / 2.0),
+
+        (_, _) =>
+            Err(RuntimeError::new(RuntimeErrorKind::AssertionError(
+                "both \"r\" and \"d\" arguments are given, but only one must be specified".to_owned()
+            ), span)),
     }
 }
 
