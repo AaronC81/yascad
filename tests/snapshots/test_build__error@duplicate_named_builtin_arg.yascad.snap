@@ -1,0 +1,6 @@
+---
+source: tests/test_build.rs
+expression: errors
+input_file: tests/bad_inputs/duplicate_named_builtin_arg.yascad
+---
+argument "size" cannot be passed by name more than once

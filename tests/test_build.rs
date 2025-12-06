@@ -1,8 +1,8 @@
-use std::io::{Cursor, Read};
+use std::error::Error;
 
 use insta::{assert_binary_snapshot, assert_snapshot, glob, with_settings};
 use manifold_rs::ext::MeshGLExt;
-use yascad_lang::{InputSource, build_model};
+use yascad_lang::{InputSource, LangError, build_model};
 
 #[test]
 fn test_build() {
@@ -20,5 +20,29 @@ fn test_build() {
         stl.write_text_stl(&mut text_stl).unwrap();
 
         assert_binary_snapshot!(".stl", text_stl);
+    });
+}
+
+#[test]
+fn test_error() {
+    fn flatten_errors<E: Error>(errors: Vec<E>) -> String {
+        errors
+            .into_iter()
+            .map(|e| format!("{e}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    glob!("bad_inputs/*.yascad", |path| {
+        let source = InputSource::new_file(path).unwrap();
+        let error = build_model(source).unwrap_err();
+
+        let errors = match error {
+            LangError::Tokenize(errors) => flatten_errors(errors),
+            LangError::Parser(errors) => flatten_errors(errors),
+            LangError::Runtime(error) => flatten_errors(vec![error]),
+        };
+
+        assert_snapshot!(errors);
     });
 }

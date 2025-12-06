@@ -1,0 +1,6 @@
+---
+source: tests/test_build.rs
+expression: errors
+input_file: tests/bad_inputs/duplicate_named_def_arg.yascad
+---
+argument "x" cannot be passed by name more than once
