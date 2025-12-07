@@ -18,7 +18,7 @@ export default function RenderCanvas({ stl }: { stl: string | undefined }) {
 
       {/* TODO: automatically zoom to fit on render */}
       <PerspectiveCamera makeDefault position={[2, 2, 2]}>
-        <spotLight position={[0, 0, 0]} angle={0.5} intensity={5} />
+        <directionalLight intensity={0.8} />
       </PerspectiveCamera>
       <OrbitControls makeDefault />
     </Canvas>
