@@ -7,6 +7,7 @@ import RenderCanvas from "./components/RenderCanvas";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import useKeyboardShortcut from "./hooks/useKeyboardShortcut";
 
 function App() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -151,26 +152,10 @@ function App() {
     await writeTextFile(file, lastStl);
   }
 
-  useEffect(() => {
-    const listener = function (event: KeyboardEvent) {
-      const ctrlOrCmd = event.ctrlKey || event.metaKey;
-
-      if (event.key === "F5") {
-        event.preventDefault();
-        renderPreview();
-      } else if (ctrlOrCmd && event.key == "s") {
-        event.preventDefault();
-        saveModel();
-      } else if (ctrlOrCmd && event.key == "n") {
-        newModel();
-      } else if (ctrlOrCmd && event.key == "o") {
-        openModel();
-      }
-    };
-    document.addEventListener("keydown", listener);
-    
-    return () => document.removeEventListener("keydown", listener);
-  }, [renderPreview, saveModel, newModel, openModel]);
+  useKeyboardShortcut({ key: "F5" }, renderPreview, [renderPreview]);
+  useKeyboardShortcut({ ctrlCmd: true, key: "s" }, saveModel, [saveModel]);
+  useKeyboardShortcut({ ctrlCmd: true, key: "n" }, newModel, [newModel]);
+  useKeyboardShortcut({ ctrlCmd: true, key: "o" }, openModel, [openModel]);
 
   return (
     <main className="flex flex-row h-screen">
