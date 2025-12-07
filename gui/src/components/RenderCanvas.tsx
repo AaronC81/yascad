@@ -1,8 +1,7 @@
 import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { STLLoader } from "three/examples/jsm/Addons.js";
-import { Suspense, useEffect, useMemo, useRef } from "react";
-import { BufferGeometry } from "three";
+import { Suspense, useMemo } from "react";
 
 export default function RenderCanvas({ stl }: { stl: string | undefined }) {
   return (
