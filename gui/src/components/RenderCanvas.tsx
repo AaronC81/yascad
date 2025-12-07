@@ -5,8 +5,6 @@ import { Suspense, useEffect, useMemo, useRef } from "react";
 import { BufferGeometry } from "three";
 
 export default function RenderCanvas({ stl }: { stl: string | undefined }) {
-  // TODO: lighting looks pretty awful, spotlight becomes obvious when zooming in
-
   return (
     <Canvas>
       <ambientLight intensity={Math.PI / 3} />
@@ -16,11 +14,13 @@ export default function RenderCanvas({ stl }: { stl: string | undefined }) {
         </Suspense>
       }
 
-      {/* TODO: automatically zoom to fit on render */}
       <PerspectiveCamera makeDefault position={[2, 2, 2]}>
         <directionalLight intensity={0.8} />
       </PerspectiveCamera>
       <OrbitControls makeDefault />
+
+      {/* TODO: Temporary - need to draw real axes with measurements at some point */}
+      <axesHelper args={[100]} />
     </Canvas>
   )
 }
