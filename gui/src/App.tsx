@@ -3,6 +3,7 @@ import { editor } from "monaco-editor";
 import yascadTokenizer from "./monarchTokenizer";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import RenderCanvas from "./components/RenderCanvas";
 
 function App() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -35,7 +36,7 @@ function App() {
     setStlDirty(false);
 
     // TODO: ideally the STL viewer we use can accept text instead
-    // const stlDataUri = `data:text/plain;base64,${btoa(lastStl)}`;
+    const stlDataUri = `data:text/plain;base64,${btoa(lastStl)}`;
 
     // TODO: Improve viewer:
     //   - Should start at more isometric angle
@@ -63,7 +64,7 @@ function App() {
     document.addEventListener("keydown", listener);
     
     return () => document.removeEventListener("keydown", listener);
-  }, [])
+  }, []);
 
   return (
     <main className="flex flex-row h-screen">
@@ -84,8 +85,9 @@ function App() {
       </div>
 
       <div className="flex-1 p-[10px] flex flex-col">
-        <div id="output-model" className="flex-1 overflow-auto font-mono text-left whitespace-break-spaces">
-          {lastStl}
+        <div id="output-model" className="flex-1">
+          {/* Important: the canvas must remain mounted all the time */}
+          <RenderCanvas stl={lastStl} />
         </div>
         <div id="output-messages" className="flex-1 font-mono text-left whitespace-break-spaces">
           {stlError || "Build messages will be shown here."}
