@@ -4,6 +4,9 @@ import yascadTokenizer from "./monarchTokenizer";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import RenderCanvas from "./components/RenderCanvas";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 function App() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -20,9 +23,105 @@ function App() {
   const [stlError, setStlError] = useState<string | null>(null);
   
   const [stlDirty, setStlDirty] = useState(true);
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
   function editorChange(_1: any, _: any) {
     setStlDirty(true);  
+    setUnsavedChanges(true);
   }
+
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
+  useEffect(() => {
+    console.log("effect trigger!");
+    (async () => {
+      const window = getCurrentWindow();
+      const unsavedIndicator = unsavedChanges ? "*" : "";
+      if (currentPath) {
+        await window.setTitle(`${unsavedIndicator}${currentPath} - YASCAD`);
+      } else {
+        await window.setTitle(`${unsavedIndicator}Untitled - YASCAD`);
+      }
+    })();
+  }, [currentPath, unsavedChanges]);
+
+  const confirmLosingUnsaved = async () => {
+    if (unsavedChanges) {
+      // For some reason, Tauri is completely incompatible with the browser here, and `confirm`
+      // returns a promise rather than a synchronous boolean.
+      //
+      // Even TypeScript thinks this is wrong, and I'm not surprised!
+      //
+      // The weird-looking cast gets us back on track.
+      return await (confirm as unknown as (message?: string) => Promise<boolean>)("Your model has unsaved changes. Are you sure you want to discard them?");
+    } else {
+      // Changes are saved, don't need to warn
+      return true;
+    }
+  };
+
+  const resetModelEditorState = () => {
+    setLastStl("");
+    setStlError(null);
+    setStlDirty(true);
+    setUnsavedChanges(false);
+    setCurrentPath(null);
+  }
+
+  const newModel = async () => {
+    if (await confirmLosingUnsaved()) {
+      resetModelEditorState();
+      editorRef.current!.setValue("");
+
+      setUnsavedChanges(false);
+    }
+  };
+
+  const openModel = async () => {
+    if (await confirmLosingUnsaved()) {
+      const file = await open({ multiple: false, directory: false });
+      if (!file) {
+        return;
+      }
+
+      resetModelEditorState();
+
+      const fileContent = await readTextFile(file);
+      editorRef.current!.setValue(fileContent);
+
+      setCurrentPath(file);
+      setUnsavedChanges(false);
+    }
+  };
+
+  const saveModel = async () => {
+    if (!currentPath) {
+      return saveModelAs();
+    }
+
+    const content = editorRef.current!.getValue();
+    await writeTextFile(currentPath, content);
+
+    setUnsavedChanges(false);
+  };
+
+  const saveModelAs = async () => {
+    const file = await save({
+      filters: [
+        {
+          name: "YASCAD Model",
+          extensions: ["yascad"]
+        },
+      ]
+    });
+    if (!file) {
+      return;
+    }
+
+    const content = editorRef.current!.getValue();
+    await writeTextFile(file, content);
+
+    setCurrentPath(file);
+    setUnsavedChanges(false);
+  };
 
   const renderPreview = async () => {
     const code = editorRef.current!.getValue();
@@ -34,41 +133,38 @@ function App() {
     }
     setStlError(null);
     setStlDirty(false);
-
-    // TODO: ideally the STL viewer we use can accept text instead
-    const stlDataUri = `data:text/plain;base64,${btoa(lastStl)}`;
-
-    // TODO: Improve viewer:
-    //   - Should start at more isometric angle
-    //   - Perspective/ortho toggle
-    //   - Show a grid
-    // if (!stlViewerHandleRef.current) {
-    //   console.log("Creating STL viewer");
-    //   const klass = (window as any).StlViewer; // Library is loaded externally
-    //   stlViewerHandleRef.current = new klass(stlViewerDomRef.current!, { models: [] });
-    // } else {
-    //   console.log("Cleaning up existing STL viewer");
-    //   stlViewerHandleRef.current.remove_model(1);
-    //   stlViewerHandleRef.current.clean();
-    // }
-
-    // stlViewerHandleRef.current.add_model({ id:1, filename: stlDataUri });
   };
 
   useEffect(() => {
     const listener = function (event: KeyboardEvent) {
+      const ctrlOrCmd = event.ctrlKey || event.metaKey;
+
       if (event.key === "F5") {
+        event.preventDefault();
         renderPreview();
+      } else if (ctrlOrCmd && event.key == "s") {
+        event.preventDefault();
+        saveModel();
+      } else if (ctrlOrCmd && event.key == "n") {
+        newModel();
+      } else if (ctrlOrCmd && event.key == "o") {
+        openModel();
       }
     };
     document.addEventListener("keydown", listener);
     
     return () => document.removeEventListener("keydown", listener);
-  }, []);
+  }, [renderPreview, saveModel, newModel, openModel]);
 
   return (
     <main className="flex flex-row h-screen">
       <div className="flex-1 flex flex-col">
+        <div className="p-[5px] flex flex-row gap-[5px]">
+          <button onClick={newModel}>New</button>
+          <button onClick={openModel}>Open...</button>
+          <button onClick={saveModel}>Save</button>
+          <button onClick={saveModelAs}>Save As...</button>
+        </div>
         <div id="code-input" className="flex-1">
           <Editor
             theme="vs-dark"
