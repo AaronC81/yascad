@@ -1,0 +1,13 @@
+operator duplicate() {
+    first = children();
+
+    translate([
+        first.size.x,
+        0
+    ])
+    copy(first);
+}
+
+duplicate()
+duplicate()
+cylinder(5, 10);
