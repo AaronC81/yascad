@@ -85,11 +85,12 @@ function App() {
       </div>
 
       <div className="flex-1 p-[10px] flex flex-col">
-        <div id="output-model" className="flex-1">
+        <div id="output-model" className="flex-1 min-h-0">
           {/* Important: the canvas must remain mounted all the time */}
           <RenderCanvas stl={lastStl} />
         </div>
-        <div id="output-messages" className="flex-1 font-mono text-left whitespace-break-spaces">
+        
+        <div id="output-messages" className={"font-mono text-left whitespace-break-spaces " + (stlError ? "flex-1" : "hidden")}>
           {stlError || "Build messages will be shown here."}
         </div>
       </div>
