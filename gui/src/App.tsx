@@ -135,6 +135,22 @@ function App() {
     setStlDirty(false);
   };
 
+  const exportStl = async () => {
+    const file = await save({
+      filters: [
+        {
+          name: "STL",
+          extensions: ["stl"]
+        },
+      ],
+    });
+    if (!file) {
+      return;
+    }
+
+    await writeTextFile(file, lastStl);
+  }
+
   useEffect(() => {
     const listener = function (event: KeyboardEvent) {
       const ctrlOrCmd = event.ctrlKey || event.metaKey;
@@ -175,8 +191,8 @@ function App() {
           />
         </div>
         <div className="flex flex-row p-[5px] gap-[5px]">
-          <button id="render-button" className="flex-2" onClick={renderPreview}>Render (F5)</button>
-          <button id="export-stl-button" className="flex-1" disabled={stlDirty}>Export STL</button>
+          <button className="flex-2" onClick={renderPreview}>Render (F5)</button>
+          <button onClick={exportStl} className="flex-1" disabled={stlDirty}>Export STL</button>
         </div>
       </div>
 
