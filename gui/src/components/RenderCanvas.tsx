@@ -2,6 +2,10 @@ import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { STLLoader } from "three/examples/jsm/Addons.js";
 import { Suspense, useMemo } from "react";
+import * as THREE from "three";
+
+// Make Z up
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export default function RenderCanvas({ stl }: { stl: string | undefined }) {
   // Three.js `STLLoader` throws an exception when an STL has no triangles.
@@ -40,3 +44,4 @@ function STL({ stl }: { stl: string }) {
     </mesh>
   )
 }
+
