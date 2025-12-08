@@ -65,7 +65,7 @@ fn square_definition() -> ModuleDefinition {
                     }, span))
                 }
             };
-            Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
+            Ok(Object::CrossSection(interpreter.manifold_table.add_cross_section(CrossSection::square(x, y, false), GeometryDisposition::Physical)))
         }
     }
 }
@@ -79,7 +79,7 @@ fn circle_definition() -> ModuleDefinition {
         },
         action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
             let radius = radius_argument(&arguments, span)?;
-            Ok(Object::Manifold(interpreter.manifold_table.add_cross_section(CrossSection::circle(radius, interpreter.circle_segments), GeometryDisposition::Physical)))
+            Ok(Object::CrossSection(interpreter.manifold_table.add_cross_section(CrossSection::circle(radius, interpreter.circle_segments), GeometryDisposition::Physical)))
         }
     }
 }

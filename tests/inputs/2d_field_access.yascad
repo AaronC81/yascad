@@ -1,8 +1,15 @@
 // Regression test - 2D cross-sections used to return 3D manifold objects, causing an error when
-// trying to access fields.
+// trying to access fields. There are separate issues when this was transformed by an operator and
+// when it wasn't, so both cases are tested.
 
-sq =
+sq1 = square([10, 10]);
+
+sq2 =
     translate([10, 20])
     square([10, 10]);
 
-square([sq.size.x, sq.size.y]);
+translate([40, 50])
+square([sq1.size.x, sq1.size.y]);
+
+translate([60, 70])
+square([sq2.size.x, sq2.size.y]);
