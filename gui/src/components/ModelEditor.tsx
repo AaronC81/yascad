@@ -118,6 +118,23 @@ export default function ModelEditor({ onChange, onReset, ...props }: {
   useKeyboardShortcut({ ctrlCmd: true, key: "n" }, newModel, [newModel]);
   useKeyboardShortcut({ ctrlCmd: true, key: "o" }, openModel, [openModel]);
 
+  // Prevent closing if there are unsaved changes
+  useEffect(() => {
+    const unlistenPromise = getCurrentWindow().onCloseRequested(async (event) => {
+      if (await confirmLosingUnsaved()) {
+        // All fine - let the window close
+      } else {
+        event.preventDefault();
+      }
+    });
+
+    // `onCloseRequested` returns a promise which resolves to a function to remove the handler.
+    // We can't await inside the `useEffect`, so do it inside the cleanup function instead
+    return () => {
+      unlistenPromise.then(fn => fn());
+    }
+  }, [confirmLosingUnsaved]);
+
   const { className, ...restProps } = props;
   return <div className={`flex flex-col ${className}`} {...restProps}>
     <div className="p-[5px] flex flex-row gap-[5px]">
