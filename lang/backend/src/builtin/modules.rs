@@ -88,13 +88,27 @@ fn copy_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: EvaluatedParameters::required(vec!["source".to_owned()]),
         action: &|interpreter, arguments, _, span| {
-            let manifold_index = arguments["source"].clone().into_manifold(span)?;
-            let manifold = interpreter.manifold_table.get(&manifold_index);
-
-            // Even if it's being copied in a virtual disposition, we can make it physical here.
+            // Note: Even if geometry is being copied in a virtual disposition, we can make it physical here.
             // The `buffer` will "downgrade" it later.
-            let copied_manifold = interpreter.manifold_table.add(manifold.clone(), GeometryDisposition::Physical);
-            Ok(Object::Manifold(copied_manifold))
+            match &arguments["source"] {
+                Object::Manifold(geometry_table_index) => {
+                    let manifold = interpreter.manifold_table.get(&geometry_table_index);
+                    let copied_manifold = interpreter.manifold_table.add(manifold.clone(), GeometryDisposition::Physical);
+                    Ok(Object::Manifold(copied_manifold))
+                }
+                Object::CrossSection(geometry_table_index) => {
+                    let cross_section = interpreter.manifold_table.get(&geometry_table_index);
+                    let copied_cross_section = interpreter.manifold_table.add(cross_section.clone(), GeometryDisposition::Physical);
+                    Ok(Object::CrossSection(copied_cross_section))
+                }
+
+                obj => {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::IncorrectType { expected: "2D or 3D geometry".to_owned(), actual: obj.describe_type() },
+                        span
+                    ));
+                }
+            }
         },
     }
 }
