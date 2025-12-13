@@ -1,4 +1,4 @@
-import { PerspectiveCamera, OrbitControls } from "@react-three/drei";
+import { PerspectiveCamera, OrbitControls, Grid, Line } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { STLLoader } from "three/examples/jsm/Addons.js";
 import { Suspense, useMemo } from "react";
@@ -17,19 +17,24 @@ export default function RenderCanvas({ stl }: { stl: string | undefined }) {
   return (
     <Canvas>
       <ambientLight intensity={Math.PI / 3} />
-      {stl && stlHasTriangles &&
-        <Suspense>
-          <STL stl={stl} />
-        </Suspense>
-      }
 
       <PerspectiveCamera makeDefault position={[2, 2, 2]}>
         <directionalLight intensity={0.8} />
       </PerspectiveCamera>
       <OrbitControls makeDefault />
 
-      {/* TODO: Temporary - need to draw real axes with measurements at some point */}
-      <axesHelper args={[100]} />
+      <Grid
+        sectionColor="#999"
+        infiniteGrid={true}
+        rotation={[Math.PI / 2, 0, 0]}
+        side={2 /* Double-sided */} />
+      <Axes />
+
+      {stl && stlHasTriangles &&
+        <Suspense>
+          <STL stl={stl} />
+        </Suspense>
+      }
     </Canvas>
   )
 }
@@ -40,8 +45,23 @@ function STL({ stl }: { stl: string }) {
 
   return (
     <mesh geometry={stlAsset}>
-      <meshStandardMaterial color="gray" />
+      <meshStandardMaterial color="orange" />
     </mesh>
   )
 }
 
+export function Axes() {
+  const size = 1000;
+  const lineThickness = 2;
+  const xColour = "#f00";
+  const yColour = "#0f0";
+  const zColour = "#00f";
+
+  return (
+    <>
+      <Line points={[[-size, 0, 0], [size, 0, 0]]} color={xColour} lineWidth={lineThickness} />
+      <Line points={[[0, -size, 0], [0, size, 0]]} color={yColour} lineWidth={lineThickness} />
+      <Line points={[[0, 0, -size], [0, 0, size]]} color={zColour} lineWidth={lineThickness} />
+    </>
+  )
+}
