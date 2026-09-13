@@ -35,7 +35,4 @@ There are two executable entry points:
 - `bin/yascad`, a CLI for building models
 - `gui`, a Tauri-based graphical editor
 
-In addition to these, the libraries are:
-
-- `lang`, language front-end/back-end crates
-- `manifold-rs`, Rust bindings around the [Manifold](https://github.com/elalish/manifold) geometry library
+In addition to these, the `lang` folder contains language front-end/back-end crates.

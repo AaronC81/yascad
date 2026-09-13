@@ -1,4 +1,3 @@
-use manifold_rs::{Vec2, Vec3};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{RuntimeError, RuntimeErrorKind, geometry_table::{GeometryTable, GeometryTableIndex}};
@@ -40,23 +39,31 @@ impl Object {
             },
 
             Object::Manifold(index) => {
-                let bounding_box = manifold_table.get(index).unwrap_manifold().bounding_box();
+                let bounding_box = manifold_table.get(index)
+                    .unwrap_manifold()
+                    .bounding_box()
+                    .expect("tried to access property of empty manifold"); // TODO: language-level error?
 
                 match field {
-                    "origin" | "min_point" => Some(bounding_box.min_point().into()),
-                    "max_point" => Some(bounding_box.max_point().into()),
-                    "size" => Some(bounding_box.size().into()),
+                    "origin" | "min_point" => Some(bounding_box.min().into()),
+                    "max_point" => Some(bounding_box.max().into()),
+                    "size" => Some(bounding_box.dimensions().into()),
                     _ => None,
                 }
             },
 
             Object::CrossSection(index) => {
-                let bounding_rect = manifold_table.get(index).unwrap_cross_section().bounding_rectangle();
+                let bounding_rect = manifold_table.get(index).unwrap_cross_section().bounds_rect2();
 
                 match field {
-                    "origin" | "min_point" => Some(bounding_rect.min_point().into()),
-                    "max_point" => Some(bounding_rect.max_point().into()),
-                    "size" => Some(bounding_rect.size().into()),
+                    "origin" | "min_point" => Some([bounding_rect.min_x, bounding_rect.min_y].into()),
+                    "max_point" => Some([bounding_rect.max_x, bounding_rect.max_y].into()),
+                    "size" => Some(
+                        [
+                            bounding_rect.max_x - bounding_rect.min_x,
+                            bounding_rect.max_y - bounding_rect.min_y,
+                        ].into()
+                    ),
                     _ => None,
                 }
             },
@@ -168,15 +175,15 @@ impl Object {
     }
 }
 
-impl From<Vec3<f64>> for Object {
-    fn from(value: Vec3<f64>) -> Self {
-        Self::Vector(vec![Self::Number(value.x), Self::Number(value.y), Self::Number(value.z)])
+impl From<[f64; 3]> for Object {
+    fn from([x, y, z]: [f64; 3]) -> Self {
+        Self::Vector(vec![Self::Number(x), Self::Number(y), Self::Number(z)])
     }
 }
 
-impl From<Vec2<f64>> for Object {
-    fn from(value: Vec2<f64>) -> Self {
-        Self::Vector(vec![Self::Number(value.x), Self::Number(value.y)])
+impl From<[f64; 2]> for Object {
+    fn from([x, y]: [f64; 2]) -> Self {
+        Self::Vector(vec![Self::Number(x), Self::Number(y)])
     }
 }
 

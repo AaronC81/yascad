@@ -3,7 +3,7 @@ use std::{fs::File, path::PathBuf, process::exit};
 use clap::Parser as ClapParser;
 use miette::Diagnostic;
 use yascad_lang::{InputSource, LangError, build_model};
-use manifold_rs::ext::MeshGLExt;
+use manifold_csg_ext::MeshGLExt;
 
 #[derive(ClapParser, Debug)]
 struct Args {
@@ -22,7 +22,7 @@ fn main() {
 
     match build_model(source) {
         Ok(model) => {
-            let stl = model.meshgl().to_stl("YASCADExport");
+            let stl = model.to_meshgl().to_stl("YASCADExport");
 
             let mut file = File::create(args.output).unwrap();
             stl.write_text_stl(&mut file).unwrap();

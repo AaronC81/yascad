@@ -1,9 +1,7 @@
 [package]
-name = "yascad-backend"
+name = "manifold-csg-ext"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-yascad-frontend = { path = "../frontend" }
-miette = "7.6.0"
 manifold-csg = "0.4.1"

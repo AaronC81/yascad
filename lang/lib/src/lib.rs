@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use manifold_rs::Manifold;
+use manifold_csg::Manifold;
 
 use yascad_backend::Interpreter;
 use yascad_frontend::{Parser, tokenize};

@@ -1,7 +1,5 @@
 use std::io;
 
-use crate::Vec3;
-
 /// An STL model.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stl {
@@ -12,8 +10,8 @@ pub struct Stl {
 /// A single triangle, defined by three points and a normal, in an STL model.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 struct StlTriangle {
-    normal: Vec3<f32>,
-    points: [Vec3<f32>; 3],
+    normal: [f32; 3],
+    points: [[f32; 3]; 3],
 }
 
 impl StlTriangle {
@@ -45,7 +43,7 @@ impl Stl {
     }
 
     /// Add a triangle to the model.
-    pub fn add_triangle(&mut self, normal: Vec3<f32>, points: [Vec3<f32>; 3]) {
+    pub fn add_triangle(&mut self, normal: [f32; 3], points: [[f32; 3]; 3]) {
         self.triangles.push(StlTriangle { normal, points });
     }
 
@@ -72,9 +70,9 @@ impl Stl {
             // defined by PartialOrd) is at the beginning.
             let mut min_point_index = 0;
             for point_index in 1..=2 {
-                if     tri.points[point_index].x < tri.points[min_point_index].x
-                    || tri.points[point_index].y < tri.points[min_point_index].y
-                    || tri.points[point_index].z < tri.points[min_point_index].z
+                if     tri.points[point_index][0] < tri.points[min_point_index][0]
+                    || tri.points[point_index][1] < tri.points[min_point_index][1]
+                    || tri.points[point_index][2] < tri.points[min_point_index][2]
                 {
                     min_point_index = point_index;
                 }
@@ -97,10 +95,10 @@ impl Stl {
         for tri in &self.triangles {
             let StlTriangle { normal, points } = tri;
 
-            writeln!(writer, "facet normal {} {} {}", normal.x, normal.y, normal.z)?;
+            writeln!(writer, "facet normal {} {} {}", normal[0], normal[1], normal[2])?;
             writeln!(writer, "  outer loop")?;
             for point in points {
-                writeln!(writer, "    vertex {} {} {}", point.x, point.y, point.z)?;
+                writeln!(writer, "    vertex {} {} {}", point[0], point[1], point[2])?;
             }
             writeln!(writer, "  endloop")?;
             writeln!(writer, "endfacet")?;

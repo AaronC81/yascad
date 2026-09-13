@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use manifold_rs::Manifold;
+use manifold_csg::Manifold;
 use yascad_frontend::InputSourceSpan;
 
 use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableEntry, GeometryTableIndex}, object::Object};
@@ -84,7 +84,7 @@ fn linear_extrude_definition() -> OperatorDefinition {
             let GeometryTableEntry::CrossSection(cross_section) = geom
             else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
 
-            Ok((GeometryTableEntry::Manifold(Manifold::extrude(cross_section.polygons(), height)), disp))
+            Ok((GeometryTableEntry::Manifold(Manifold::extrude(&cross_section, height)), disp))
         },
     }
 }
@@ -102,7 +102,7 @@ fn rotate_extrude_definition() -> OperatorDefinition {
             let GeometryTableEntry::CrossSection(cross_section) = geom
             else { return Err(RuntimeError::new(RuntimeErrorKind::Requires2DGeometry, span.clone())) };
 
-            Ok((GeometryTableEntry::Manifold(Manifold::revolve(cross_section.polygons(), interpreter.circle_segments, angle)), disp))
+            Ok((GeometryTableEntry::Manifold(Manifold::revolve(&cross_section, interpreter.circle_segments, angle)), disp))
         },
     }
 }
@@ -156,7 +156,7 @@ fn mirror_definition() -> OperatorDefinition {
             Ok((match geom {
                 GeometryTableEntry::Manifold(manifold) => {
                     let (x, y, z) = arguments["v"].as_3d_vector(span.clone())?;
-                    GeometryTableEntry::Manifold(manifold.mirror(x, y, z))
+                    GeometryTableEntry::Manifold(manifold.mirror([x, y, z]))
                 }
                 GeometryTableEntry::CrossSection(cross_section) => {
                     let (x, y) = arguments["v"].as_2d_vector(span.clone())?;

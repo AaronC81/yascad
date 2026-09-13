@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeInclusive, rc::Rc};
 
-use manifold_rs::Manifold;
+use manifold_csg::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
 
 use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
@@ -90,7 +90,7 @@ impl Interpreter {
         // Height which 2D geometry is extruded to, for 3D display
         const CROSS_SECTION_EXTRUDE_HEIGHT: f64 = 0.01;
 
-        let mut result = Manifold::new();
+        let mut result = Manifold::empty();
 
         for (entry, disposition) in self.manifold_table.iter_geometry() {
             if *disposition != GeometryDisposition::Physical {
@@ -102,7 +102,7 @@ impl Interpreter {
                     result = result.union(manifold);
                 },
                 GeometryTableEntry::CrossSection(cross_section) => {
-                    result = result.union(&Manifold::extrude(cross_section.polygons(), CROSS_SECTION_EXTRUDE_HEIGHT));
+                    result = result.union(&Manifold::extrude(&cross_section, CROSS_SECTION_EXTRUDE_HEIGHT));
                 }
             }
         }

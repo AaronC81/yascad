@@ -1,6 +1,6 @@
 use std::{fs::File, path::PathBuf};
 
-use manifold_rs::ext::MeshGLExt;
+use manifold_csg_ext::MeshGLExt;
 use miette::Diagnostic;
 use yascad_lang::{build_model, InputSource, LangError};
 
@@ -12,7 +12,7 @@ fn render_preview(code: &str) -> Result<String, String> {
     println!("{res:?}");
     match res {
         Ok(model) => {
-            let stl = model.meshgl().to_stl("YASCADPreview");
+            let stl = model.to_meshgl().to_stl("YASCADPreview");
             let mut stl_bytes = vec![];
             stl.write_text_stl(&mut stl_bytes).unwrap();
             let stl_text = String::from_utf8(stl_bytes).unwrap();

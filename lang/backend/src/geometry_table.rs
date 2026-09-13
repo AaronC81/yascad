@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use manifold_rs::{CrossSection, Manifold};
+use manifold_csg::{CrossSection, Manifold};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{RuntimeError, RuntimeErrorKind, object::Object};

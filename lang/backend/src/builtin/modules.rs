@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use manifold_rs::{CrossSection, Manifold};
+use manifold_csg::{CrossSection, Manifold};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
@@ -46,7 +46,7 @@ fn cylinder_definition() -> ModuleDefinition {
             let height = arguments["h"].as_number(span.clone())?;
             let radius = radius_argument(&arguments, span)?;
 
-            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(radius, height, interpreter.circle_segments, false), GeometryDisposition::Physical)))
+            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(height, radius, radius, interpreter.circle_segments, false), GeometryDisposition::Physical)))
         },
     }
 }

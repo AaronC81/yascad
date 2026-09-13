@@ -6,4 +6,4 @@ edition = "2024"
 [dependencies]
 yascad-frontend = { path = "../frontend" }
 yascad-backend = { path = "../backend" }
-manifold-rs = { path = "../../manifold-rs" }
+manifold-csg = "0.4.1"

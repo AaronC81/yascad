@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use insta::{assert_binary_snapshot, assert_snapshot, glob, with_settings};
-use manifold_rs::ext::MeshGLExt;
+use manifold_csg_ext::MeshGLExt;
 use yascad_lang::{InputSource, LangError, build_model};
 
 #[test]
@@ -14,7 +14,7 @@ fn test_build() {
         let source = InputSource::new_file(path).unwrap();
         let model = build_model(source).unwrap();
 
-        let mut stl = model.meshgl().to_stl("YASCADText");
+        let mut stl = model.to_meshgl().to_stl("YASCADText");
         stl.sort();
         let mut text_stl = Vec::new();
         stl.write_text_stl(&mut text_stl).unwrap();
