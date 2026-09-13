@@ -1,11 +1,9 @@
 import { Editor, Monaco } from "@monaco-editor/react";
-import { ComponentProps, useCallback, useEffect, useRef, useState } from "react";
+import { ComponentProps, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { editor } from "monaco-editor";
 import yascadTokenizer from "./../monarchTokenizer";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import useKeyboardShortcut from "../hooks/useKeyboardShortcut";
+import { pickOpenFile, pickSaveFile } from "../lib/file-picker";
 
 export default function ModelEditor({ onChange, onReset, ...props }: {
   onChange: (editor: editor.IStandaloneCodeEditor) => any,
@@ -27,32 +25,11 @@ export default function ModelEditor({ onChange, onReset, ...props }: {
     onChange(editorRef.current!);
   }
 
-  const [currentPath, setCurrentPath] = useState<string | null>(null);
-
-  // Update window state based on the state of the editor.
-  // It's a bit cheeky to do this within the `ModelEditor` component, but the interface for this
-  // editor would be a bit weird if we lifted state out.
-  useEffect(() => {
-    (async () => {
-      const window = getCurrentWindow();
-      const unsavedIndicator = unsavedChanges ? "*" : "";
-      if (currentPath) {
-        await window.setTitle(`${unsavedIndicator}${currentPath} - YASCAD`);
-      } else {
-        await window.setTitle(`${unsavedIndicator}Untitled - YASCAD`);
-      }
-    })();
-  }, [currentPath, unsavedChanges]);
+  const [currentHandle, setCurrentHandle] = useState<FileSystemFileHandle | null>(null);
 
   const confirmLosingUnsaved = useCallback(async () => {
     if (unsavedChanges) {
-      // For some reason, Tauri is completely incompatible with the browser here, and `confirm`
-      // returns a promise rather than a synchronous boolean.
-      //
-      // Even TypeScript thinks this is wrong, and I'm not surprised!
-      //
-      // The weird-looking cast gets us back on track.
-      return await (confirm as unknown as (message?: string) => Promise<boolean>)("Your model has unsaved changes. Are you sure you want to discard them?");
+      return confirm("Your model has unsaved changes. Are you sure you want to discard them?");
     } else {
       // Changes are saved, don't need to warn
       return true;
@@ -69,48 +46,43 @@ export default function ModelEditor({ onChange, onReset, ...props }: {
 
   const openModel = useCallback(async () => {
     if (await confirmLosingUnsaved()) {
-      const file = await open({ multiple: false, directory: false });
-      if (!file) {
-        return;
-      }
+      const handle = await pickOpenFile("yascad");
+      if (!handle) return;
 
-      const fileContent = await readTextFile(file);
+      const fileContent = await (await handle.getFile()).text();
       editorRef.current!.setValue(fileContent);
 
-      setCurrentPath(file);
+      setCurrentHandle(handle);
       setUnsavedChanges(false);
       onReset();
     }
   }, [confirmLosingUnsaved, onReset]);
 
   const saveModel = useCallback(async () => {
-    if (!currentPath) {
+    if (!currentHandle) {
       return saveModelAs();
     }
 
     const content = editorRef.current!.getValue();
-    await writeTextFile(currentPath, content);
+    
+    const writable = await currentHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
 
     setUnsavedChanges(false);
-  }, [currentPath]);
+  }, [currentHandle]);
 
   const saveModelAs = useCallback(async () => {
-    const file = await save({
-      filters: [
-        {
-          name: "YASCAD Model",
-          extensions: ["yascad"]
-        },
-      ]
-    });
-    if (!file) {
-      return;
-    }
-
     const content = editorRef.current!.getValue();
-    await writeTextFile(file, content);
+    const handle = await pickSaveFile("yascad");
+    
+    if (!handle) return;
 
-    setCurrentPath(file);
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+
+    setCurrentHandle(handle);
     setUnsavedChanges(false);
   }, []);
 
@@ -119,21 +91,17 @@ export default function ModelEditor({ onChange, onReset, ...props }: {
   useKeyboardShortcut({ ctrlCmd: true, key: "o" }, openModel, [openModel]);
 
   // Prevent closing if there are unsaved changes
-  useEffect(() => {
-    const unlistenPromise = getCurrentWindow().onCloseRequested(async (event) => {
-      if (await confirmLosingUnsaved()) {
-        // All fine - let the window close
-      } else {
-        event.preventDefault();
-      }
-    });
-
-    // `onCloseRequested` returns a promise which resolves to a function to remove the handler.
-    // We can't await inside the `useEffect`, so do it inside the cleanup function instead
-    return () => {
-      unlistenPromise.then(fn => fn());
+  const handleBeforeUnload = useEffectEvent((e: Event) => {
+    if (unsavedChanges) {
+      e.preventDefault();
     }
-  }, [confirmLosingUnsaved]);
+  });
+  useEffect(() => {
+    const handler = (e: Event) => handleBeforeUnload(e);
+    window.addEventListener("beforeunload", handler);
+
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const { className, ...restProps } = props;
   return <div className={`flex flex-col ${className}`} {...restProps}>

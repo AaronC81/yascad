@@ -2,10 +2,12 @@
 <html>
     <body>
         <script type="module">
-            import init, { yascad_test } from "./pkg/yascad_wasm.js";
+            import init, { buildYascadModelToStl } from "./pkg/yascad_wasm.js";
 
             await init();
-            console.log(yascad_test());
+            console.log(
+                buildYascadModelToStl("cube(1)")
+            );
         </script>
     </body>
 </html>

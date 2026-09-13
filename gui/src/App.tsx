@@ -1,12 +1,11 @@
 import { useCallback, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import RenderCanvas from "./components/RenderCanvas";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import useKeyboardShortcut from "./hooks/useKeyboardShortcut";
 import { editor } from "monaco-editor";
 import ModelEditor from "./components/ModelEditor";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+import { buildYascadModelToStl } from "./binary/yascad_wasm";
+import { pickSaveFile } from "./lib/file-picker";
 
 function App() {
   const [lastStl, setLastStl] = useState("");
@@ -31,7 +30,8 @@ function App() {
   const renderPreview = useCallback(async () => {
     const code = editorRef.current!.getValue();
     try {
-      setLastStl(await invoke("render_preview", { code }));
+      const stl = buildYascadModelToStl(code);
+      setLastStl(stl);
     } catch (e) {
       setStlError(String(e));
       return;
@@ -41,19 +41,13 @@ function App() {
   }, []);
 
   const exportStl = useCallback(async () => {
-    const file = await save({
-      filters: [
-        {
-          name: "STL",
-          extensions: ["stl"]
-        },
-      ],
-    });
-    if (!file) {
-      return;
-    }
+    const handle = await pickSaveFile("stl");
 
-    await writeTextFile(file, lastStl);
+    if (handle) {
+      const writable = await handle.createWritable();
+      await writable.write(lastStl);
+      await writable.close();
+    }
   }, [lastStl]);
 
   useKeyboardShortcut({ key: "F5" }, renderPreview, [renderPreview]);

@@ -31,6 +31,10 @@ This needs a recent nightly Rust. No crates are currently available, so check ou
 There are two executable entry points:
 
 - `bin/yascad`, a CLI for building models
-- `gui`, a Tauri-based graphical editor
+- `gui`, a web-based graphical editor
 
-In addition to these, the `lang` folder contains language front-end/back-end crates.
+In addition to these, there are two notable libraries:
+
+- `lang` contains language front-end/back-end crates
+- `wasm` is a simplified WebAssembly binding for the language libraries
+  - Build with `wasm-pack build --target bundler`
