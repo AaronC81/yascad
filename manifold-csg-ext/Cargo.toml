@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-manifold-csg = "0.4.1"
+manifold-csg = { version = "0.4.1", features = ["unstable-wasm-uu"] }

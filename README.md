@@ -26,9 +26,7 @@ relative to the rest of your model.
 
 ## Usage
 
-This needs a recent nightly Rust. No crates are currently available, so check out the repo (recursively - submodules are used).
-
-You also need CMake to compile some of the non-Rust dependencies.
+This needs a recent nightly Rust. No crates are currently available, so check out the repo.
 
 There are two executable entry points:
 
