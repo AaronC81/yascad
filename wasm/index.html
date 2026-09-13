@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <script type="module">
+            import init, { yascad_test } from "./pkg/yascad_wasm.js";
+
+            await init();
+            console.log(yascad_test());
+        </script>
+    </body>
+</html>
