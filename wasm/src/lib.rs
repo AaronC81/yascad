@@ -1,13 +1,24 @@
 use manifold_csg_ext::MeshGLExt;
 use miette::{Diagnostic, Report};
 use wasm_bindgen::prelude::wasm_bindgen;
-use yascad_lang::{InputSource, LangError, build_model};
+use yascad_lang::{BuildModelOptions, InputSource, LangError, build_model};
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn console_log(s: &str);
+}
 
 #[wasm_bindgen(js_name = "buildYascadModelToStl")]
 pub fn build_yascad_model_to_stl(code: String) -> Result<String, String> {
     let source = InputSource::new_string(code.to_owned());
 
-    let res = build_model(source);
+    let res = build_model(source, BuildModelOptions {
+        debug_hook: Some(Box::new(|o| {
+            console_log(&format!("{o:?}"));
+        })),
+        ..Default::default()
+    });
     match res {
         Ok(model) => {
             let stl = model.to_meshgl().to_stl("YASCADPreview");

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use manifold_csg::Manifold;
 
-use yascad_backend::Interpreter;
+use yascad_backend::{Interpreter, Object};
 use yascad_frontend::{Parser, tokenize};
 pub use yascad_frontend::{InputSource, InputSourceOrigin, ParseError, TokenizeError};
 pub use yascad_backend::RuntimeError;
@@ -14,7 +14,12 @@ pub enum LangError {
     Runtime(RuntimeError),
 }
 
-pub fn build_model(source: InputSource) -> Result<Manifold, LangError> {
+#[derive(Default)]
+pub struct BuildModelOptions {
+    pub debug_hook: Option<Box<dyn Fn(&Object) + 'static>>,
+}
+
+pub fn build_model(source: InputSource, options: BuildModelOptions) -> Result<Manifold, LangError> {
     let source = Rc::new(source);
 
     let (tokens, errors) = tokenize(source.clone());
@@ -30,6 +35,11 @@ pub fn build_model(source: InputSource) -> Result<Manifold, LangError> {
     }
 
     let mut interpreter = Interpreter::new();
+
+    if let Some(debug_hook) = options.debug_hook {
+        interpreter.set_debug_hook(debug_hook);
+    }
+
     match interpreter.interpret_top_level(&stmts) {
         Ok(_) => {
             Ok(interpreter.build_top_level_manifold())

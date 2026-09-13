@@ -2,7 +2,7 @@ use std::{fs::File, path::PathBuf, process::exit};
 
 use clap::Parser as ClapParser;
 use miette::Diagnostic;
-use yascad_lang::{InputSource, LangError, build_model};
+use yascad_lang::{BuildModelOptions, InputSource, LangError, build_model};
 use manifold_csg_ext::MeshGLExt;
 
 #[derive(ClapParser, Debug)]
@@ -20,7 +20,7 @@ fn main() {
     let args = Args::parse();
     let source = InputSource::new_file(args.input).unwrap();
 
-    match build_model(source) {
+    match build_model(source, BuildModelOptions::default()) {
         Ok(model) => {
             let stl = model.to_meshgl().to_stl("YASCADExport");
 

@@ -74,6 +74,7 @@ impl Default for ExecutionContext<'_> {
 pub struct Interpreter {
     pub(crate) manifold_table: GeometryTable,
     pub(crate) circle_segments: i32,
+    pub(crate) debug_hook: Box<dyn Fn(&Object) + 'static>,
 }
 
 impl Interpreter {
@@ -83,7 +84,14 @@ impl Interpreter {
 
             // TODO: add $fn setter support
             circle_segments: 20,
+
+            debug_hook: Box::new(|obj| println!("{obj:?}")),
         }
+    }
+
+    /// Set the function which gets called when invoking the `__debug` module.
+    pub fn set_debug_hook(&mut self, func: Box<dyn Fn(&Object) + 'static>) {
+        self.debug_hook = func;
     }
 
     pub fn build_top_level_manifold(&self) -> Manifold {

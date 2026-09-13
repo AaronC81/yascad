@@ -2,7 +2,7 @@ use std::error::Error;
 
 use insta::{assert_binary_snapshot, assert_snapshot, glob, with_settings};
 use manifold_csg_ext::MeshGLExt;
-use yascad_lang::{InputSource, LangError, build_model};
+use yascad_lang::{BuildModelOptions, InputSource, LangError, build_model};
 
 #[test]
 fn test_build() {
@@ -12,7 +12,7 @@ fn test_build() {
 
     glob!("inputs/*.yascad", |path| {
         let source = InputSource::new_file(path).unwrap();
-        let model = build_model(source).unwrap();
+        let model = build_model(source, BuildModelOptions::default()).unwrap();
 
         let mut stl = model.to_meshgl().to_stl("YASCADText");
         stl.sort();
@@ -35,7 +35,7 @@ fn test_error() {
 
     glob!("bad_inputs/*.yascad", |path| {
         let source = InputSource::new_file(path).unwrap();
-        let error = build_model(source).unwrap_err();
+        let error = build_model(source, BuildModelOptions::default()).unwrap_err();
 
         let errors = match error {
             LangError::Tokenize(errors) => flatten_errors(errors),

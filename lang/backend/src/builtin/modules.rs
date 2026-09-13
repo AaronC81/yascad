@@ -140,8 +140,8 @@ fn children_definition() -> ModuleDefinition {
 fn __debug_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: EvaluatedParameters::required(vec!["o".to_owned()]),
-        action: &|_, arguments, _, _| {
-            println!("{:#?}", arguments["o"]);
+        action: &|interpreter, arguments, _, _| {
+            (interpreter.debug_hook)(&arguments["o"]);
             Ok(Object::Null)
         },
     }
