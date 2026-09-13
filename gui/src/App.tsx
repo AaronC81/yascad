@@ -4,7 +4,7 @@ import useKeyboardShortcut from "./hooks/useKeyboardShortcut";
 import { editor } from "monaco-editor";
 import ModelEditor from "./components/ModelEditor";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
-import { buildYascadModelToStl } from "./binary/yascad_wasm";
+import { buildYascadModelToStl } from "yascad-wasm";
 import { pickSaveFile } from "./lib/file-picker";
 
 function App() {

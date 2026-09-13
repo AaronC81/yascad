@@ -38,3 +38,4 @@ In addition to these, there are two notable libraries:
 - `lang` contains language front-end/back-end crates
 - `wasm` is a simplified WebAssembly binding for the language libraries
   - Build with `wasm-pack build --target bundler`
+  - Or, automatically built by `gui`

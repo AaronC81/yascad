@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:wasm": "wasm-pack build ../wasm --target bundler",
+    "predev": "npm run build:wasm",
+    "prebuild": "npm run build:wasm"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -19,7 +22,8 @@
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^3.0.6",
     "tailwindcss": "^4.1.17",
-    "three": "^0.181.2"
+    "three": "^0.181.2",
+    "yascad-wasm": "file:../wasm/pkg"
   },
   "devDependencies": {
     "@types/react": "^19.1.8",
