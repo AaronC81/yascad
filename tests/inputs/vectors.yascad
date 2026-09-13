@@ -1,0 +1,11 @@
+empty_vec = [];
+one_item_vec = [1];
+more_items_vec = [1, 2, 3];
+
+cube([1, 1, empty_vec.length + 1]);
+
+translate([2, 0])
+cube([1, 1, one_item_vec.length + 1]);
+
+translate([4, 0])
+cube([1, 1, more_items_vec.length + 1]);

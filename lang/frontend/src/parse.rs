@@ -453,7 +453,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
             
             TokenKind::LBracket => {
-                // TODO: support parsing empty vector
+                // Empty vector
+                if let Some(Token { kind: TokenKind::RBracket, .. }) = self.tokens.peek() {
+                    let Token { span: end_span, .. } = self.tokens.next().unwrap();
+
+                    let vector_span = span.union_with(&[end_span]);
+                    return Some((Node::new(NodeKind::VectorLiteral(vec![]), vector_span), StatementTerminator::NeedsSemicolon))
+                }
 
                 // Parse the first item ourselves, because we need to check whether this is an
                 // item-based vector or a range vector.
@@ -461,8 +467,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
                 match self.tokens.peek() {
                     // Single-item vector
-                    Some(Token { kind: TokenKind::RBracket, span: end_span }) => {
-                        let vector_span = span.union_with(slice::from_ref(end_span));
+                    Some(Token { kind: TokenKind::RBracket, .. }) => {
+                        let Token { span: end_span, .. } = self.tokens.next().unwrap();
+
+                        let vector_span = span.union_with(&[end_span]);
                         Some((Node::new(NodeKind::VectorLiteral(vec![first_item]), vector_span), StatementTerminator::NeedsSemicolon))
                     },
 
