@@ -34,6 +34,7 @@ impl Object {
                     "x" => Some(objects.get(0).cloned().unwrap_or(Object::Null)),
                     "y" => Some(objects.get(1).cloned().unwrap_or(Object::Null)),
                     "z" => Some(objects.get(2).cloned().unwrap_or(Object::Null)),
+                    "length" => Some(Object::Number(objects.len() as f64)),
                     _ => None,
                 }
             },
