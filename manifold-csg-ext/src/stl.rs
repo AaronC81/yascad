@@ -58,9 +58,6 @@ impl Stl {
             *tri = tri.normalise_zeroes();
         }
 
-        // Sort triangles based on all of their properties
-        self.triangles.sort_by(|a, b| a.partial_cmp(b).expect("NaN not permitted in triangle"));
-
         for tri in &mut self.triangles {
             // For a triangle as defined by the STL format, points ordered like 1 2 3 are equivalent to
             // 3 1 2 and 2 3 1. I think the winding needs to stay constant, so other orderings aren't
@@ -70,10 +67,7 @@ impl Stl {
             // defined by PartialOrd) is at the beginning.
             let mut min_point_index = 0;
             for point_index in 1..=2 {
-                if     tri.points[point_index][0] < tri.points[min_point_index][0]
-                    || tri.points[point_index][1] < tri.points[min_point_index][1]
-                    || tri.points[point_index][2] < tri.points[min_point_index][2]
-                {
+                if tri.points[point_index] < tri.points[min_point_index] {
                     min_point_index = point_index;
                 }
             };
@@ -85,6 +79,9 @@ impl Stl {
                 _ => unreachable!()
             };
         }
+
+        // Sort triangles based on all of their properties
+        self.triangles.sort_by(|a, b| a.partial_cmp(b).expect("NaN not permitted in triangle"));
     }
     
     /// Write out this STL in textual format.

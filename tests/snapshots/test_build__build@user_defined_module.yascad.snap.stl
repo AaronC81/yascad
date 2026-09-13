@@ -8,9 +8,9 @@ facet normal -1 0 0
 endfacet
 facet normal -1 0 0
   outer loop
-    vertex 0 10 10
     vertex 0 0 20
     vertex 0 20 20
+    vertex 0 10 10
   endloop
 endfacet
 facet normal -1 0 0
@@ -50,9 +50,9 @@ facet normal -1 0 0
 endfacet
 facet normal -1 0 0
   outer loop
-    vertex 30 40 40
     vertex 30 30 50
     vertex 30 50 50
+    vertex 30 40 40
   endloop
 endfacet
 facet normal -1 0 0
@@ -92,16 +92,9 @@ facet normal 0 -1 0
 endfacet
 facet normal 0 -1 0
   outer loop
-    vertex 10 0 10
-    vertex 20 0 20
     vertex 0 0 20
-  endloop
-endfacet
-facet normal 0 -1 0
-  outer loop
-    vertex 20 0 0
-    vertex 20 0 20
     vertex 10 0 10
+    vertex 20 0 20
   endloop
 endfacet
 facet normal 0 -1 0
@@ -127,6 +120,13 @@ facet normal 0 -1 0
 endfacet
 facet normal 0 -1 0
   outer loop
+    vertex 10 0 10
+    vertex 20 0 0
+    vertex 20 0 20
+  endloop
+endfacet
+facet normal 0 -1 0
+  outer loop
     vertex 30 30 40
     vertex 40 30 40
     vertex 30 30 50
@@ -134,16 +134,9 @@ facet normal 0 -1 0
 endfacet
 facet normal 0 -1 0
   outer loop
-    vertex 40 30 40
-    vertex 50 30 50
     vertex 30 30 50
-  endloop
-endfacet
-facet normal 0 -1 0
-  outer loop
-    vertex 50 30 30
-    vertex 50 30 50
     vertex 40 30 40
+    vertex 50 30 50
   endloop
 endfacet
 facet normal 0 -1 0
@@ -165,6 +158,13 @@ facet normal 0 -1 0
     vertex 40 30 30
     vertex 50 30 30
     vertex 40 30 40
+  endloop
+endfacet
+facet normal 0 -1 0
+  outer loop
+    vertex 40 30 40
+    vertex 50 30 30
+    vertex 50 30 50
   endloop
 endfacet
 facet normal 0 0 -1
@@ -183,16 +183,16 @@ facet normal 0 0 -1
 endfacet
 facet normal 0 0 -1
   outer loop
-    vertex 10 10 0
-    vertex 0 20 0
-    vertex 20 20 0
+    vertex 0 10 10
+    vertex 10 10 10
+    vertex 10 0 10
   endloop
 endfacet
 facet normal 0 0 -1
   outer loop
-    vertex 0 10 10
-    vertex 10 10 10
-    vertex 10 0 10
+    vertex 0 20 0
+    vertex 20 20 0
+    vertex 10 10 0
   endloop
 endfacet
 facet normal 0 0 -1
@@ -225,16 +225,16 @@ facet normal 0 0 -1
 endfacet
 facet normal 0 0 -1
   outer loop
-    vertex 40 40 30
-    vertex 30 50 30
-    vertex 50 50 30
+    vertex 30 40 40
+    vertex 40 40 40
+    vertex 40 30 40
   endloop
 endfacet
 facet normal 0 0 -1
   outer loop
-    vertex 30 40 40
-    vertex 40 40 40
-    vertex 40 30 40
+    vertex 30 50 30
+    vertex 50 50 30
+    vertex 40 40 30
   endloop
 endfacet
 facet normal 0 0 -1
@@ -260,9 +260,9 @@ facet normal 0 0 1
 endfacet
 facet normal 0 0 1
   outer loop
+    vertex 0 20 20
     vertex 20 0 20
     vertex 20 20 20
-    vertex 0 20 20
   endloop
 endfacet
 facet normal 0 0 1
@@ -274,9 +274,9 @@ facet normal 0 0 1
 endfacet
 facet normal 0 0 1
   outer loop
+    vertex 30 50 50
     vertex 50 30 50
     vertex 50 50 50
-    vertex 30 50 50
   endloop
 endfacet
 facet normal 0 1 0
@@ -316,9 +316,9 @@ facet normal 1 0 0
 endfacet
 facet normal 1 0 0
   outer loop
+    vertex 20 0 20
     vertex 20 20 0
     vertex 20 20 20
-    vertex 20 0 20
   endloop
 endfacet
 facet normal 1 0 0
@@ -330,9 +330,9 @@ facet normal 1 0 0
 endfacet
 facet normal 1 0 0
   outer loop
+    vertex 50 30 50
     vertex 50 50 30
     vertex 50 50 50
-    vertex 50 30 50
   endloop
 endfacet
 endsolid YASCADText

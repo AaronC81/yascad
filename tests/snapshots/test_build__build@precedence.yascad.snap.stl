@@ -22,9 +22,9 @@ facet normal 0 -1 0
 endfacet
 facet normal 0 -1 0
   outer loop
+    vertex 0 0 1
     vertex 78 0 0
     vertex 78 0 1
-    vertex 0 0 1
   endloop
 endfacet
 facet normal 0 0 -1
@@ -50,9 +50,9 @@ facet normal 0 0 1
 endfacet
 facet normal 0 0 1
   outer loop
+    vertex 0 25 1
     vertex 78 0 1
     vertex 78 25 1
-    vertex 0 25 1
   endloop
 endfacet
 facet normal 0 1 0
@@ -78,9 +78,9 @@ facet normal 1 0 0
 endfacet
 facet normal 1 0 0
   outer loop
+    vertex 78 0 1
     vertex 78 25 0
     vertex 78 25 1
-    vertex 78 0 1
   endloop
 endfacet
 endsolid YASCADText
