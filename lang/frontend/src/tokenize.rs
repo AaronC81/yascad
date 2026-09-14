@@ -174,7 +174,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 tokens.push(Token::new(TokenKind::Number(buffer), source.span(start_index, length)));
             }
 
-            _ if char.is_alphabetic() || char == '_' => {
+            _ if char.is_alphabetic() || char == '_' || char == '$' => {
                 let mut buffer = char.to_string();
 
                 while let Some((_, char)) = chars.peek() {

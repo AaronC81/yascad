@@ -123,6 +123,16 @@ impl Interpreter {
     pub fn interpret(&mut self, node: &Node, ctx: &ExecutionContext) -> Result<Object, RuntimeError> {
         match &node.kind {
             NodeKind::Identifier(id) => {
+                if id == "$children" {
+                    return match ctx.operator_children {
+                        Some(children) => Ok(Object::Number(children.len() as f64)),
+                        None => Err(RuntimeError::new(
+                            RuntimeErrorKind::ChildrenInvalid,
+                            node.span.clone(),
+                        )),
+                    }
+                }
+
                 match self.get_existing_name(id, ctx, node.span.clone())? {
                     NameDefinition::Argument(obj) | NameDefinition::Binding(obj) => Ok(obj),
                     
