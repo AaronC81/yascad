@@ -38,6 +38,8 @@ pub enum NodeKind {
         // Note: the indexes in here might not necessarily line up with children at runtime, since
         // only some of these might evaluate to a manifold
         children: Vec<Node>,
+
+        splatted_children: Option<Box<Node>>,
     },
     Call {
         name: String,
@@ -148,6 +150,8 @@ pub enum ParseErrorKind {
     InvalidNumber,
     RequiredParameterAfterOptionalParameter(String),
     PositionalArgumentAfterNamedArgument,
+    NamedSplat,
+    MultipleSplat,
 }
 
 impl Display for ParseErrorKind {
@@ -158,6 +162,8 @@ impl Display for ParseErrorKind {
             ParseErrorKind::InvalidNumber => write!(f, "number could not be parsed, possibly out-of-range?"),
             ParseErrorKind::RequiredParameterAfterOptionalParameter(name) => write!(f, "required parameter \"{name}\" appears after optional parameters - required parameters must come first"),
             ParseErrorKind::PositionalArgumentAfterNamedArgument => write!(f, "positional argument appears after named arguments - positional arguments must come first"),
+            ParseErrorKind::NamedSplat => write!(f, "splat arguments cannot be named"),
+            ParseErrorKind::MultipleSplat => write!(f, "only one splat argument can be specified"),
         }
     }
 }
@@ -409,6 +415,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                                 name: id,
                                 arguments,
                                 children: vec![child],
+                                splatted_children: None,
                             }, call_span),
                             operator,
                         ))
@@ -419,8 +426,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                                 name: id,
                                 arguments,
                                 children,
+                                splatted_children: None,
                             }, call_span),
                             StatementTerminator::Braced,
+                        ))
+                    } else if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Ellipsis) {
+                        self.tokens.next();
+
+                        let (splatted_children, operator) = self.parse_expression()?;
+                        Some((
+                            Node::new(NodeKind::OperatorApplication {
+                                name: id,
+                                arguments,
+                                children: vec![],
+                                splatted_children: Some(Box::new(splatted_children)),
+                            }, call_span),
+                            operator,
                         ))
                     } else {
                         Some((

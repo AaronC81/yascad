@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeI
 use manifold_csg::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
 
-use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -211,10 +211,45 @@ impl Interpreter {
                 }
             },
 
-            NodeKind::OperatorApplication { name, arguments, children } => {
-                let all_children = children.iter()
-                    .map(|child| self.interpret(child, &ctx.with_it_manifold(ItManifold::None)))
-                    .collect::<Result<Vec<_>, _>>()?;
+            NodeKind::OperatorApplication { name, arguments, children, splatted_children } => {
+                let all_children = match (splatted_children, children) {
+                    (None, children) => {
+                        children.iter()
+                            .map(|child| self.interpret(child, &ctx.with_it_manifold(ItManifold::None)))
+                            .collect::<Result<Vec<_>, _>>()?
+                    },
+
+                    (Some(splat_children), children) if children.is_empty() => {
+                        // TODO: horrible special-case, but I'm not sure there's a way to make this work reliably for anything other than `children`
+                        // The behaviour is pretty confusing otherwise!
+                        match splat_children {
+                            deref!(Node { kind: NodeKind::Call { name, arguments }, .. }) if name == "children" => {
+                                let arguments = self.evaluate_arguments(arguments, &ctx)?;
+                                let arguments = self.match_arguments_to_parameters(
+                                    arguments,
+                                    children_definition().parameters,
+                                    node.span.clone(),
+                                )?;
+                                
+                                get_children(self, arguments, ctx.operator_children.clone(), node.span.clone())?
+                                    .into_iter()
+                                    .map(|idx| self.manifold_table.index_to_object(&idx))
+                                    .collect::<Vec<_>>()
+                            },
+
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    RuntimeErrorKind::UnsupportedSplat,
+                                    node.span.clone(),
+                                ))
+                            }
+                        }
+                    },
+
+                    (Some(_), _) => {
+                        unreachable!("got splat and list of children"); // The syntax shouldn't allow for this
+                    },
+                };
 
                 // Not `physical_manifolds` because applying an operator to a virtual manifold is
                 // allowed

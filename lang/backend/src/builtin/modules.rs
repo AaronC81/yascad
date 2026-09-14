@@ -113,23 +113,32 @@ fn copy_definition() -> ModuleDefinition {
     }
 }
 
-fn children_definition() -> ModuleDefinition {
+pub(crate) fn get_children(
+    interpreter: &mut Interpreter,
+    arguments: HashMap<String, Object>,
+    operator_children: Option<&[GeometryTableIndex]>,
+    span: InputSourceSpan,
+) -> Result<Vec<GeometryTableIndex>, RuntimeError> {
+    let Some(children) = operator_children
+    else {
+        return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
+    };
+
+    // The children are temporary virtual manifolds.
+    // Copy them as physical and then build a union of all of the copies.
+    Ok(children.iter()
+        .map(|child| {
+            let m = interpreter.manifold_table.get(child).clone();
+            interpreter.manifold_table.add(m, GeometryDisposition::Physical)
+        })
+        .collect::<Vec<_>>())
+}
+
+pub(crate) fn children_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: EvaluatedParameters::empty(),
-        action: &|interpreter, _, operator_children, span| {
-            let Some(children) = operator_children
-            else {
-                return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
-            };
-
-            // The children are temporary virtual manifolds.
-            // Copy them as physical and then build a union of all of the copies.
-            let copied_children = children.iter()
-                .map(|child| {
-                    let m = interpreter.manifold_table.get(child).clone();
-                    interpreter.manifold_table.add(m, GeometryDisposition::Physical)
-                })
-                .collect::<Vec<_>>();
+        action: &|interpreter, arguments, operator_children, span| {
+            let copied_children = get_children(interpreter, arguments, operator_children, span.clone())?;
 
             let (geom, disp) = interpreter.manifold_table.remove_many_into_union(copied_children, span)?;
             Ok(interpreter.manifold_table.add_into_object(geom, disp))

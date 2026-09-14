@@ -46,6 +46,7 @@ pub enum TokenKind {
     Semicolon,
     Dot,
     Colon,
+    Ellipsis,
 
     Plus,
     Minus,
@@ -89,6 +90,7 @@ impl Display for TokenKind {
             TokenKind::Semicolon => write!(f, "semicolon"),
             TokenKind::Dot => write!(f, "dot"),
             TokenKind::Colon => write!(f, "colon"),
+            TokenKind::Ellipsis => write!(f, "ellipsis"),
 
             TokenKind::Plus => write!(f, "plus"),
             TokenKind::Minus => write!(f, "minus"),
@@ -288,7 +290,21 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 tokens.push(Token::new(TokenKind::Semicolon, source.span(start_index, 1)))
             },
             '.' => {
-                tokens.push(Token::new(TokenKind::Dot, source.span(start_index, 1)))
+                if chars.peek().is_some_and(|(_, char)| *char == '.') {
+                    chars.next();
+                    if chars.peek().is_some_and(|(_, char)| *char == '.') {
+                        chars.next();
+
+                        tokens.push(Token::new(TokenKind::Ellipsis, source.span(start_index, 3)));
+                    } else {
+                        errors.push(TokenizeError::new(
+                            TokenizeErrorKind::UnexpectedChar(char),
+                            source.span(start_index, 1),
+                        ))
+                    }
+                } else {
+                    tokens.push(Token::new(TokenKind::Dot, source.span(start_index, 1)))
+                }
             }
             ':' => {
                 tokens.push(Token::new(TokenKind::Colon, source.span(start_index, 1)))

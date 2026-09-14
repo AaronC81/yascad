@@ -1,4 +1,5 @@
 #![feature(type_alias_impl_trait)]
+#![feature(deref_patterns)]
 
 mod object;
 pub use object::Object;

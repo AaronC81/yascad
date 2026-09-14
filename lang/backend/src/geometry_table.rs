@@ -116,6 +116,13 @@ impl GeometryTable {
         &self.table.get(&index.0).expect("geometry not in table").0
     }
 
+    pub fn index_to_object(&self, index: &GeometryTableIndex) -> Object {
+        match self.get(index) {
+            GeometryTableEntry::Manifold(_) => Object::Manifold(index.clone()),
+            GeometryTableEntry::CrossSection(_) => Object::CrossSection(index.clone()),
+        }
+    }
+
     pub fn get_disposition(&self, index: &GeometryTableIndex) -> GeometryDisposition {
         self.table.get(&index.0).expect("geometry not in table").1
     }

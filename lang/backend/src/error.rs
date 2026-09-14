@@ -50,6 +50,7 @@ pub enum RuntimeErrorKind {
     FlippedRange,
     Requires2DGeometry,
     DuplicateOutputName(String),
+    UnsupportedSplat,
 
     /// A generic error which can be triggered by user code.
     AssertionError(String),
@@ -96,6 +97,7 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::FlippedRange => write!(f, "end of range is lower than start"),
             RuntimeErrorKind::Requires2DGeometry => write!(f, "this operation requires 2D geometry, but 3D was provided"),
             RuntimeErrorKind::DuplicateOutputName(name) => write!(f, "an output named \"{name}\" has already been defined"),
+            RuntimeErrorKind::UnsupportedSplat => write!(f, "sorry, only `children` can currently be used as a `...` splat"),
 
             RuntimeErrorKind::AssertionError(err) => write!(f, "{err}"),
         }
