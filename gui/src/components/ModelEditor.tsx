@@ -4,6 +4,8 @@ import { editor } from "monaco-editor";
 import yascadTokenizer from "./../monarchTokenizer";
 import useKeyboardShortcut from "../hooks/useKeyboardShortcut";
 import { pickOpenFile, pickSaveFile } from "../lib/file-picker";
+import IconButton from "./IconButton";
+import { fas } from "@fortawesome/free-solid-svg-icons";
 
 export default function ModelEditor({ onChange, onReset, ...props }: {
   onChange: (editor: editor.IStandaloneCodeEditor) => any,
@@ -106,14 +108,14 @@ export default function ModelEditor({ onChange, onReset, ...props }: {
   const { className, ...restProps } = props;
   return <div className={`flex flex-col ${className}`} {...restProps}>
     <div className="p-[5px] flex flex-row gap-[5px]">
-      <button onClick={newModel}>New</button>
-      <button onClick={openModel}>Open...</button>
-      <button onClick={saveModel}>Save</button>
-      <button onClick={saveModelAs}>Save As...</button>
+      <IconButton onClick={newModel} icon={fas.faPlus} label="New" />
+      <IconButton onClick={openModel} icon={fas.faFolderOpen} label="Open..." />
+      <IconButton onClick={saveModel} icon={fas.faChevronDown} label="Save" />
+      <IconButton onClick={saveModelAs} icon={fas.faAnglesDown} label="Save As..." />
     </div>
     <div className="flex-1">
       <Editor
-        theme="vs-dark"
+        theme="vs-light"
         language="yascad"
         beforeMount={editorWillMount}
         onMount={editorDidMount}

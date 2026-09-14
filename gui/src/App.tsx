@@ -6,6 +6,8 @@ import ModelEditor from "./components/ModelEditor";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { BuildStlOutput, buildYascadModelToStl } from "yascad-wasm";
 import { pickSaveFile } from "./lib/file-picker";
+import IconButton from "./components/IconButton";
+import { fas } from "@fortawesome/free-solid-svg-icons";
 
 function App() {
   const [lastBuildOutput, setLastBuildOutput] = useState<BuildStlOutput | null>(null);
@@ -75,29 +77,33 @@ function App() {
             onChange={editorChange}
             onReset={resetModelEditorState}
           />
-          <div className="flex flex-row p-[5px] gap-[5px]">
-            <button className="flex-2" onClick={renderPreview}>Render (F5)</button>
-            <button onClick={exportStl} className="flex-1" disabled={stlDirty}>Export STL</button>
+          <div className="flex flex-row p-[5px] gap-[5px] items-center">
+            <IconButton onClick={renderPreview} label="Render (F5)" icon={fas.faCube} />
+            <IconButton onClick={exportStl} label="Export STL" icon={fas.faFileExport} disabled={stlDirty} />
+
+            {Object.keys(lastBuildOutput?.outputs ?? {}).length > 0 && <>
+              <div role="separator" className="border-r border-gray-300 h-full" />
+              <div className="p-2">
+                Show output:
+                <div >
+                  <select value={currentOutputView} onChange={e => setCurrentOutputView(e.target.value)}>
+                    <option value="___main___">All</option>
+                    {Object.keys(lastBuildOutput?.outputs ?? {})
+                      .toSorted()
+                      .map((output) =>
+                        <option key={output} value={output}>{output}</option>
+                      )
+                    }
+                  </select>
+                </div>
+              </div>
+            </>}
           </div>
         </Panel>
 
         <PanelResizeHandle />
 
         <Panel className="flex flex-col" defaultSize={50}>
-          {Object.keys(lastBuildOutput?.outputs ?? {}).length > 0 &&
-            <div className="p-2">
-              <select value={currentOutputView} onChange={e => setCurrentOutputView(e.target.value)}>
-                <option value="___main___">Combined Output</option>
-                {Object.keys(lastBuildOutput?.outputs ?? {})
-                  .toSorted()
-                  .map((output) =>
-                    <option key={output} value={output}>{output}</option>
-                  )
-                }
-              </select>
-            </div>
-          }
-
           <div id="output-model" className="flex-1 min-h-0">
             {/* Important: the canvas must remain mounted all the time */}
             <RenderCanvas stl={currentStl ?? ""} />
