@@ -20,6 +20,7 @@ impl Token {
 pub enum TokenKind {
     Identifier(String),
     Number(String),
+    String(String), // Note: Value is the content of the string, does not include outer quotes
 
     KwIt,
     KwOperator,
@@ -62,6 +63,8 @@ impl Display for TokenKind {
         match self {
             TokenKind::Identifier(id) => write!(f, "identifier \"{id}\""),
             TokenKind::Number(number) => write!(f, "number \"{number}\""),
+            TokenKind::String(_) => write!(f, "string literal"),
+
             TokenKind::LParen => write!(f, "left paren"),
             TokenKind::RParen => write!(f, "right paren"),
             TokenKind::LBrace => write!(f, "left brace"),
@@ -127,12 +130,16 @@ impl Error for TokenizeError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenizeErrorKind {
     UnexpectedChar(char),
+    UnterminatedString,
+    UnknownEscapeSequence(String),
 }
 
 impl Display for TokenizeErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TokenizeErrorKind::UnexpectedChar(c) => write!(f, "unexpected character {c}"),
+            TokenizeErrorKind::UnterminatedString => write!(f, "string is not terminated"),
+            TokenizeErrorKind::UnknownEscapeSequence(seq) => write!(f, "unknown escape sequence {seq}"),
         }
     }
 }
@@ -144,7 +151,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
     let source_for_chars = source.clone();
     let mut chars = source_for_chars.content.chars().enumerate().peekable();
 
-    while let Some((start_index, char)) = chars.next() {
+    'outer: while let Some((start_index, char)) = chars.next() {
         match char {
             _ if char.is_ascii_digit() => {
                 let mut buffer = char.to_string();
@@ -212,6 +219,48 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                         break;
                     }
                 }
+            }
+
+            '"' => {
+                // Keep taking characters until we find the closing quote
+                let mut buffer = String::new();
+
+                let last_index = loop {
+                    let Some((index, char)) = chars.next() else {
+                        errors.push(TokenizeError::new(
+                            TokenizeErrorKind::UnterminatedString,
+                            source.eof_span(),
+                        ));
+                        break 'outer;
+                    };
+                    
+                    match char {
+                        '"' => break index,
+                        '\\' => {
+                            let Some((_, escaped_char)) = chars.next() else {
+                                errors.push(TokenizeError::new(
+                                    TokenizeErrorKind::UnterminatedString,
+                                    source.eof_span(),
+                                ));
+                                break 'outer;
+                            };
+
+                            match escaped_char {
+                                '"' => buffer.push('"'),
+                                '\\' => buffer.push('\\'),
+                                'n' => buffer.push('\n'),
+                                _ => errors.push(TokenizeError::new(
+                                    TokenizeErrorKind::UnknownEscapeSequence(escaped_char.to_string()),
+                                    source.span(index, 2),
+                                )),
+                            }
+                        },
+
+                        char => buffer.push(char),
+                    }
+                };
+
+                tokens.push(Token::new(TokenKind::String(buffer), source.span(start_index, last_index - start_index)));
             }
 
             '(' => {

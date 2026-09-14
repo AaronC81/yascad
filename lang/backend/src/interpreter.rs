@@ -150,6 +150,10 @@ impl Interpreter {
                 Ok(Object::Number(*num))
             },
 
+            NodeKind::StringLiteral(str) => {
+                Ok(Object::String(str.clone()))
+            }
+
             NodeKind::BooleanLiteral(bool) => {
                 Ok(Object::Boolean(*bool))
             }

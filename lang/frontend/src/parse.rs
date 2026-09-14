@@ -21,6 +21,7 @@ pub enum NodeKind {
     Identifier(String),
     NullLiteral,
     NumberLiteral(f64),
+    StringLiteral(String),
     BooleanLiteral(bool),
     VectorLiteral(Vec<Node>),
     VectorRangeLiteral {
@@ -450,6 +451,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     self.errors.push(ParseError::new(ParseErrorKind::InvalidNumber, span.clone()));
                     Some((Node::new(NodeKind::NumberLiteral(0.0), span), StatementTerminator::NeedsSemicolon))
                 }
+            }
+
+            TokenKind::String(str) => {
+                Some((Node::new(NodeKind::StringLiteral(str), span), StatementTerminator::NeedsSemicolon))
             }
             
             TokenKind::LBracket => {
