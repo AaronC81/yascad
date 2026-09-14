@@ -6,6 +6,7 @@ import useKeyboardShortcut from "../hooks/useKeyboardShortcut";
 import { pickOpenFile, pickSaveFile } from "../lib/file-picker";
 import IconButton from "./IconButton";
 import { fas } from "@fortawesome/free-solid-svg-icons";
+import logo from "../img/logo.png";
 
 export default function ModelEditor({ onChange, onReset, ...props }: {
   onChange: (editor: editor.IStandaloneCodeEditor) => any,
@@ -107,7 +108,8 @@ export default function ModelEditor({ onChange, onReset, ...props }: {
 
   const { className, ...restProps } = props;
   return <div className={`flex flex-col ${className}`} {...restProps}>
-    <div className="p-[5px] flex flex-row gap-[5px]">
+    <div className="p-[5px] flex flex-row gap-[5px] items-center">
+      <img src={logo} alt="YASCAD Logo" className="h-12 px-4" />
       <IconButton onClick={newModel} icon={fas.faPlus} label="New" />
       <IconButton onClick={openModel} icon={fas.faFolderOpen} label="Open..." />
       <IconButton onClick={saveModel} icon={fas.faChevronDown} label="Save" />
