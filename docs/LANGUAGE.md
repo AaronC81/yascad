@@ -33,6 +33,16 @@ For example, using identifiers which haven't been defined, or passing invalid ar
 
 In YASCAD, these are runtime errors instead.
 
+### Little conveniences
+
+YASCAD lets you do arithmetic with scalars and vectors, which isn't possible in OpenSCAD:
+
+```
+[1, 2, 3] + 1
+// equivalent to
+[1 + 1, 2 + 1, 3 + 1]
+```
+
 ## Inspecting geometry
 
 YASCAD lets you assign geometry to a variable.

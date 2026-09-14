@@ -1,0 +1,4 @@
+square([1, 2] + 3);
+
+translate([6, 6])
+square([1, 2] + [1, 1]);

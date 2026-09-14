@@ -29,6 +29,8 @@ impl Error for RuntimeError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeErrorKind {
     IncorrectType { expected: String, actual: String },
+    IncorrectBinopTypes { left: String, right: String },
+    MixedVectorSizeBinopNotSupported,
     UndefinedIdentifier(String),
     InvalidIdentifier { id: String, kind: String },
     UndefinedField { ty: String, field: String },
@@ -56,6 +58,8 @@ impl Display for RuntimeErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RuntimeErrorKind::IncorrectType { expected, actual } => write!(f, "type error - expected {expected}, got {actual}"),
+            RuntimeErrorKind::IncorrectBinopTypes { left, right } => write!(f, "type error - cannot use binary operator with {left} and {right}"),
+            RuntimeErrorKind::MixedVectorSizeBinopNotSupported => write!(f, "binops between vectors of different lengths are currently unsupported"),
             RuntimeErrorKind::UndefinedIdentifier(id) => write!(f, "undefined identifier \"{id}\""),
             RuntimeErrorKind::InvalidIdentifier { id, kind } => write!(f, "identifier \"{id}\" is a {kind}, which cannot be used here"),
             RuntimeErrorKind::UndefinedField { ty, field } => write!(f, "{ty} object has no field \"{field}\""),

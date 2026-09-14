@@ -1,0 +1,6 @@
+---
+source: tests/test_build.rs
+expression: errors
+input_file: tests/bad_inputs/binop_type_error.yascad
+---
+type error - cannot use binary operator with 2D cross-section and number

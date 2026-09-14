@@ -322,12 +322,6 @@ impl Interpreter {
                 let left = self.interpret(left, ctx)?;
                 let right = self.interpret(right, ctx)?;
 
-                let numeric_binop = |operation: &'static dyn Fn(f64, f64) -> f64| {
-                    Ok::<Object, RuntimeError>(Object::Number(operation(
-                        left.as_number(node.span.clone())?,
-                        right.as_number(node.span.clone())?,
-                    )))
-                };
                 let numeric_comparison_binop = |operation: &'static dyn Fn(f64, f64) -> bool| {
                     Ok::<Object, RuntimeError>(Object::Boolean(operation(
                         left.as_number(node.span.clone())?,
@@ -336,10 +330,10 @@ impl Interpreter {
                 };
 
                 match op {
-                    BinaryOperator::Add => numeric_binop(&|l, r| l + r),
-                    BinaryOperator::Subtract => numeric_binop(&|l, r| l - r),
-                    BinaryOperator::Multiply => numeric_binop(&|l, r| l * r),
-                    BinaryOperator::Divide => numeric_binop(&|l, r| l / r),
+                    BinaryOperator::Add => self.apply_numeric_binop(left, right, &|l, r| l + r, &node.span),
+                    BinaryOperator::Subtract => self.apply_numeric_binop(left, right, &|l, r| l - r, &node.span),
+                    BinaryOperator::Multiply => self.apply_numeric_binop(left, right, &|l, r| l * r, &node.span),
+                    BinaryOperator::Divide => self.apply_numeric_binop(left, right, &|l, r| l / r, &node.span),
 
                     BinaryOperator::Equals => Ok(Object::Boolean(left == right)),
 
@@ -636,6 +630,62 @@ impl Interpreter {
             .collect();
 
         Ok(map)
+    }
+
+    fn apply_numeric_binop(&mut self, left: Object, right: Object, op: &dyn Fn(f64, f64) -> f64, span: &InputSourceSpan) -> Result<Object, RuntimeError> {
+        match (left, right) {
+            (Object::Number(left), Object::Number(right)) => Ok(Object::Number(op(left, right))),
+
+            (Object::Vector(left), Object::Vector(right)) => {
+                if left.len() != right.len() {
+                    // TODO: support this
+                    return Err(
+                        RuntimeError::new(
+                            RuntimeErrorKind::MixedVectorSizeBinopNotSupported,
+                            span.clone(),
+                        )
+                    )
+                }
+
+                Ok(Object::Vector(
+                    left.into_iter()
+                        .zip(right)
+                        .map(|(l, r)| self.apply_numeric_binop(l, r, op, span))
+                        .collect::<Result<Vec<_>, _>>()?,
+                ))
+            }
+
+            (Object::Vector(left), Object::Number(right)) => {
+                let vec_of_nums = left.into_iter()
+                    .map(|o| o.as_number(span.clone()))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Object::Vector(
+                    vec_of_nums.into_iter()
+                        .map(|n| Object::Number(op(n, right)))
+                        .collect()
+                ))
+            }
+
+            (Object::Number(left), Object::Vector(right)) => {
+                let vec_of_nums = right.into_iter()
+                    .map(|o| o.as_number(span.clone()))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Object::Vector(
+                    vec_of_nums.into_iter()
+                        .map(|n| Object::Number(op(left, n)))
+                        .collect()
+                ))
+            }
+
+            (left, right) => Err(
+                RuntimeError::new(
+                    RuntimeErrorKind::IncorrectBinopTypes { left: left.describe_type(), right: right.describe_type() },
+                    span.clone(),
+                )
+            )
+        }
     }
 }
 

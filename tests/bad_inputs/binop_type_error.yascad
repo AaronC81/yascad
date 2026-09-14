@@ -1,0 +1,3 @@
+s = square([1, 2]);
+
+square(s + 1);
