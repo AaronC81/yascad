@@ -4,13 +4,27 @@ import useKeyboardShortcut from "./hooks/useKeyboardShortcut";
 import { editor } from "monaco-editor";
 import ModelEditor from "./components/ModelEditor";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
-import { buildYascadModelToStl } from "yascad-wasm";
+import { BuildStlOutput, buildYascadModelToStl } from "yascad-wasm";
 import { pickSaveFile } from "./lib/file-picker";
 
 function App() {
-  const [lastStl, setLastStl] = useState("");
+  const [lastBuildOutput, setLastBuildOutput] = useState<BuildStlOutput | null>(null);
   const [stlError, setStlError] = useState<string | null>(null);
   const [stlDirty, setStlDirty] = useState(true);
+
+  const [currentOutputView, setCurrentOutputView] = useState("___main___");
+  let currentStl = currentOutputView === "___main___"
+    ? lastBuildOutput?.main
+    : lastBuildOutput?.outputs?.[currentOutputView];
+
+  // If the current output stops existing, revert to main
+  if (
+    lastBuildOutput
+    && currentOutputView !== "___main___"
+    && !Object.hasOwn(lastBuildOutput.outputs, currentOutputView)
+  ) {
+    setCurrentOutputView("___main___");
+  }
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   function editorChange(editor: editor.IStandaloneCodeEditor) {
@@ -22,7 +36,7 @@ function App() {
   }  
 
   const resetModelEditorState = useCallback(() => {
-    setLastStl("");
+    setLastBuildOutput(null);
     setStlError(null);
     setStlDirty(true);
   }, []);
@@ -31,7 +45,7 @@ function App() {
     const code = editorRef.current!.getValue();
     try {
       const stl = buildYascadModelToStl(code);
-      setLastStl(stl.main);
+      setLastBuildOutput(stl);
     } catch (e) {
       setStlError(String(e));
       return;
@@ -43,12 +57,12 @@ function App() {
   const exportStl = useCallback(async () => {
     const handle = await pickSaveFile("stl");
 
-    if (handle) {
+    if (handle && lastBuildOutput) {
       const writable = await handle.createWritable();
-      await writable.write(lastStl);
+      await writable.write(currentStl ?? "");
       await writable.close();
     }
-  }, [lastStl]);
+  }, [lastBuildOutput]);
 
   useKeyboardShortcut({ key: "F5" }, renderPreview, [renderPreview]);
 
@@ -70,9 +84,23 @@ function App() {
         <PanelResizeHandle />
 
         <Panel className="flex flex-col" defaultSize={50}>
+          {Object.keys(lastBuildOutput?.outputs ?? {}).length > 0 &&
+            <div className="p-2">
+              <select value={currentOutputView} onChange={e => setCurrentOutputView(e.target.value)}>
+                <option value="___main___">Combined Output</option>
+                {Object.keys(lastBuildOutput?.outputs ?? {})
+                  .toSorted()
+                  .map((output) =>
+                    <option key={output} value={output}>{output}</option>
+                  )
+                }
+              </select>
+            </div>
+          }
+
           <div id="output-model" className="flex-1 min-h-0">
             {/* Important: the canvas must remain mounted all the time */}
-            <RenderCanvas stl={lastStl} />
+            <RenderCanvas stl={currentStl ?? ""} />
           </div>
           
           <div id="output-messages" className={"font-mono text-left whitespace-break-spaces " + (stlError ? "flex-1" : "hidden")}>
