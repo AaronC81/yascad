@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use manifold_csg::Manifold;
 
@@ -19,7 +19,13 @@ pub struct BuildModelOptions {
     pub debug_hook: Option<Box<dyn Fn(&Object) + 'static>>,
 }
 
-pub fn build_model(source: InputSource, options: BuildModelOptions) -> Result<Manifold, LangError> {
+#[derive(Debug, Clone)]
+pub struct BuildModelOutput {
+    pub main: Manifold,
+    pub outputs: HashMap<String, Manifold>,
+}
+
+pub fn build_model(source: InputSource, options: BuildModelOptions) -> Result<BuildModelOutput, LangError> {
     let source = Rc::new(source);
 
     let (tokens, errors) = tokenize(source.clone());
@@ -42,7 +48,14 @@ pub fn build_model(source: InputSource, options: BuildModelOptions) -> Result<Ma
 
     match interpreter.interpret_top_level(&stmts) {
         Ok(_) => {
-            Ok(interpreter.build_top_level_manifold())
+            let main = interpreter.build_top_level_manifold();
+
+            let outputs = interpreter.outputs
+                .iter()
+                .map(|(k, v)| (k.clone(), v.as_manifold_for_display()))
+                .collect::<HashMap<_, _>>();
+
+            Ok(BuildModelOutput { main, outputs })
         }
         Err(error) => {
             Err(LangError::Runtime(error))

@@ -52,6 +52,21 @@ impl GeometryTableEntry {
             _ => panic!("expected cross-section, got: {self:?}")
         }
     }
+
+    /// Convert this entry into a 3D manifold suitable for rendering.
+    /// 
+    /// 3D shapes are unchanged.
+    /// 2D shapes are extruded a tiny amount so they're visible.
+    pub fn as_manifold_for_display(&self) -> Manifold {
+        // Height which 2D geometry is extruded to, for 3D display
+        const CROSS_SECTION_EXTRUDE_HEIGHT: f64 = 0.01;
+
+        match self {
+            GeometryTableEntry::Manifold(manifold) => manifold.clone(),
+            GeometryTableEntry::CrossSection(cross_section) =>
+                Manifold::extrude(&cross_section, CROSS_SECTION_EXTRUDE_HEIGHT),
+        }
+    }
 }
 
 #[derive(Debug)]

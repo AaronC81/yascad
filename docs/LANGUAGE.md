@@ -154,3 +154,21 @@ rotate_around_centre(45)
 translate([2, 2])
 square(1);
 ```
+
+## Outputs
+
+By default, the output from your YASCAD code is the sum of all physical geometry.
+
+There may be cases where you'd like to have code produce multiple separate models.
+For example, if you're designing a storage box, you might like to 3D print the main box and the lid separately, but model them together so they can share dimensions.
+
+To accomplish this, apply the `output` operator to each separate model.
+Each `output` requires a string parameter providing a unique name:
+
+```
+output("Lid")
+cube(...);
+
+output("Box")
+cube(...);
+```

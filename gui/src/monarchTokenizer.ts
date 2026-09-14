@@ -7,7 +7,7 @@ export default {
     'operator', 'module', 'it', 'for', 'if', 'else', 'true', 'false', 'null', 'undef',
 
     // Not really keywords, but important/special enough to highlight like one
-    'buffer', 'children', 'copy',
+    'buffer', 'children', 'copy', 'output',
   ],
 
   operators: ['=', '+', '-', '*', '/', '==', '<', '>', '<=', '>='],

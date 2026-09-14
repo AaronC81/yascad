@@ -177,6 +177,20 @@ fn buffer_definition() -> OperatorDefinition {
     }
 }
 
+fn output_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: EvaluatedParameters::required(vec!["name".to_owned()]),
+        action: &|interpreter, arguments, children, span| {
+            let name = arguments["name"].as_string(span.clone())?;
+            let (geom, _) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
+
+            interpreter.add_output(&name, geom.clone(), span)?;
+
+            Ok((geom, GeometryDisposition::Physical))
+        },
+    }
+}
+
 /// Get the implementation for a specific built-in operator.
 /// 
 /// Returns [`None`] if no such operator exists.
@@ -191,6 +205,7 @@ pub fn get_builtin_operator(name: &str) -> Option<OperatorDefinition> {
         "scale" => Some(scale_definition()),
         "mirror" => Some(mirror_definition()),
         "buffer" => Some(buffer_definition()),
+        "output" => Some(output_definition()),
 
         _ => None,
     }

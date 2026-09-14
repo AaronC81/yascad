@@ -31,7 +31,7 @@ function App() {
     const code = editorRef.current!.getValue();
     try {
       const stl = buildYascadModelToStl(code);
-      setLastStl(stl);
+      setLastStl(stl.main);
     } catch (e) {
       setStlError(String(e));
       return;

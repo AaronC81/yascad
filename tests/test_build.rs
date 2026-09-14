@@ -14,7 +14,7 @@ fn test_build() {
         let source = InputSource::new_file(path).unwrap();
         let model = build_model(source, BuildModelOptions::default()).unwrap();
 
-        let mut stl = model.to_meshgl().to_stl("YASCADText");
+        let mut stl = model.main.to_meshgl().to_stl("YASCADText");
         stl.sort();
         let mut text_stl = Vec::new();
         stl.write_text_stl(&mut text_stl).unwrap();

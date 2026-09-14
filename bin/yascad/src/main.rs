@@ -22,7 +22,7 @@ fn main() {
 
     match build_model(source, BuildModelOptions::default()) {
         Ok(model) => {
-            let stl = model.to_meshgl().to_stl("YASCADExport");
+            let stl = model.main.to_meshgl().to_stl("YASCADExport");
 
             let mut file = File::create(args.output).unwrap();
             stl.write_text_stl(&mut file).unwrap();

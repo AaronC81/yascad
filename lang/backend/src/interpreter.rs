@@ -75,6 +75,8 @@ pub struct Interpreter {
     pub(crate) manifold_table: GeometryTable,
     pub(crate) circle_segments: i32,
     pub(crate) debug_hook: Box<dyn Fn(&Object) + 'static>,
+
+    pub outputs: HashMap<String, GeometryTableEntry>,
 }
 
 impl Interpreter {
@@ -86,6 +88,8 @@ impl Interpreter {
             circle_segments: 20,
 
             debug_hook: Box::new(|obj| println!("{obj:?}")),
+
+            outputs: HashMap::new(),
         }
     }
 
@@ -95,9 +99,6 @@ impl Interpreter {
     }
 
     pub fn build_top_level_manifold(&self) -> Manifold {
-        // Height which 2D geometry is extruded to, for 3D display
-        const CROSS_SECTION_EXTRUDE_HEIGHT: f64 = 0.01;
-
         let mut result = Manifold::empty();
 
         for (entry, disposition) in self.manifold_table.iter_geometry() {
@@ -105,14 +106,7 @@ impl Interpreter {
                 continue;
             }
 
-            match entry {
-                GeometryTableEntry::Manifold(manifold) => {
-                    result = result.union(manifold);
-                },
-                GeometryTableEntry::CrossSection(cross_section) => {
-                    result = result.union(&Manifold::extrude(&cross_section, CROSS_SECTION_EXTRUDE_HEIGHT));
-                }
-            }
+            result = result.union(&entry.as_manifold_for_display());
         }
 
         result
@@ -690,6 +684,18 @@ impl Interpreter {
                 )
             )
         }
+    }
+
+    pub(crate) fn add_output(&mut self, name: &str, geometry: GeometryTableEntry, span: InputSourceSpan) -> Result<(), RuntimeError> {
+        if self.outputs.contains_key(name) {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::DuplicateOutputName(name.to_owned()),
+                span,
+            ));
+        }
+
+        self.outputs.insert(name.to_owned(), geometry);
+        Ok(())
     }
 }
 

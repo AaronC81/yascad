@@ -11,3 +11,5 @@ miette = { version = "7.6.0", features = ["fancy"] }
 wasm-bindgen = "0.2"
 yascad-lang = { path = "../lang/lib" }
 manifold-csg-ext = { path = "../manifold-csg-ext" }
+manifold-csg = { version = "0.4.1", features = ["unstable-wasm-uu"] }
+js-sys = "0.3.105"
