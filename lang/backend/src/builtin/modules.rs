@@ -124,9 +124,35 @@ pub(crate) fn get_children(
         return Err(RuntimeError::new(RuntimeErrorKind::ChildrenInvalid, span));
     };
 
+    let selected_children = match &arguments["index"] {
+        Object::Null => children.to_vec(),
+
+        Object::Number(num) => {
+            let index = num.round() as usize; // TODO validate integerness with proper error
+
+            // TODO: validate bounds
+            vec![children[index].clone()]
+        },
+
+        Object::Vector(vec) => {
+            // TODO: same as number
+            vec.into_iter()
+                .map(|o| o.as_number(span.clone()))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|i| children[i.round() as usize].clone())
+                .collect()
+        },
+
+        o => return Err(RuntimeError::new(
+            RuntimeErrorKind::IncorrectType { expected: "number or vector".to_owned(), actual: o.describe_type() },
+            span,
+        )),
+    };
+
     // The children are temporary virtual manifolds.
     // Copy them as physical and then build a union of all of the copies.
-    Ok(children.iter()
+    Ok(selected_children.iter()
         .map(|child| {
             let m = interpreter.manifold_table.get(child).clone();
             interpreter.manifold_table.add(m, GeometryDisposition::Physical)
@@ -136,7 +162,7 @@ pub(crate) fn get_children(
 
 pub(crate) fn children_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: EvaluatedParameters::empty(),
+        parameters: EvaluatedParameters::new(vec![], vec![("index".to_owned(), Object::Null)]),
         action: &|interpreter, arguments, operator_children, span| {
             let copied_children = get_children(interpreter, arguments, operator_children, span.clone())?;
 
