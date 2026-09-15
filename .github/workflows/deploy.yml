@@ -36,7 +36,7 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack
       - name: Install LLVM for Manifold build
-        run: apt install -y clang-20 lld-20 libc++-20-dev libc++abi-20-dev
+        run: sudo apt install -y clang-20 lld-20 libc++-20-dev libc++abi-20-dev
       - name: Test Rust components
         run: cargo test
       - name: Set up Node
