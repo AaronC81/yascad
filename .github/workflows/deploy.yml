@@ -37,10 +37,8 @@ jobs:
         run: cargo test
       - name: Set up Node
         uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966 # v7
-        working-directory: gui
         with:
           node-version: lts/*
-          cache: 'npm'
       - name: Install dependencies
         working-directory: gui
         run: npm ci
