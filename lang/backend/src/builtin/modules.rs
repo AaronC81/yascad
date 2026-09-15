@@ -130,13 +130,32 @@ pub(crate) fn get_children(
 
         obj@Object::Number(_) => {
             let index = obj.as_index(span.clone())?;
-            vec![children[index].clone()]
+
+            match children.get(index) {
+                Some(child) => vec![child.clone()],
+                None => return Err(RuntimeError::new(
+                    RuntimeErrorKind::ChildOutOfRange(index),
+                    span,
+                )),
+            }
+
         },
 
         Object::Vector(vec) => {
-            vec.into_iter()
+            let indices = vec.into_iter()
                 .map(|o| o.as_index(span.clone()))
-                .collect::<Result<Vec<_>, _>>()?
+                .collect::<Result<Vec<_>, _>>()?;
+
+            for index in &indices {
+                if *index >= children.len() {
+                    return Err(RuntimeError::new(
+                        RuntimeErrorKind::ChildOutOfRange(*index),
+                        span,
+                    ));
+                }
+            }
+
+            indices
                 .into_iter()
                 .map(|i| children[i].clone())
                 .collect()
