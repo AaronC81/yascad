@@ -48,14 +48,17 @@ impl Object {
             Object::Manifold(index) => {
                 let bounding_box = manifold_table.get(index)
                     .unwrap_manifold()
-                    .bounding_box()
-                    .expect("tried to access property of empty manifold"); // TODO: language-level error?
+                    .bounding_box();
 
-                match field {
-                    "origin" | "min_point" => Some(bounding_box.min().into()),
-                    "max_point" => Some(bounding_box.max().into()),
-                    "size" => Some(bounding_box.dimensions().into()),
-                    _ => None,
+                if let Some(bounding_box) = bounding_box {
+                    match field {
+                        "origin" | "min_point" => Some(bounding_box.min().into()),
+                        "max_point" => Some(bounding_box.max().into()),
+                        "size" => Some(bounding_box.dimensions().into()),
+                        _ => None,
+                    }
+                } else {
+                    self.get_field_of_empty_geometry(field)
                 }
             },
 
@@ -76,10 +79,21 @@ impl Object {
             },
 
             Object::EmptyGeometry => {
-                // TODO: what should the behaviour of this be?
-                // (Do the same for empty manifolds/cross-sections too)
-                panic!("tried to access property of empty geometry");
+                self.get_field_of_empty_geometry(field)
             }
+        }
+    }
+
+    fn get_field_of_empty_geometry(&self, field: &str) -> Option<Object> {
+        let empty_vector = Object::Vector(vec![
+            Object::Number(0.0),
+            Object::Number(0.0),
+            Object::Number(0.0),
+        ]);
+
+        match field {
+            "origin" | "min_point" | "max_point" | "size" => Some(empty_vector),
+            _ => None,
         }
     }
 
