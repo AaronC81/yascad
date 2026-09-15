@@ -51,6 +51,8 @@ pub enum RuntimeErrorKind {
     Requires2DGeometry,
     DuplicateOutputName(String),
     UnsupportedSplat,
+    ExpectedInteger,
+    ExpectedPositive,
 
     /// A generic error which can be triggered by user code.
     AssertionError(String),
@@ -98,6 +100,8 @@ impl Display for RuntimeErrorKind {
             RuntimeErrorKind::Requires2DGeometry => write!(f, "this operation requires 2D geometry, but 3D was provided"),
             RuntimeErrorKind::DuplicateOutputName(name) => write!(f, "an output named \"{name}\" has already been defined"),
             RuntimeErrorKind::UnsupportedSplat => write!(f, "sorry, only `children` can currently be used as a `...` splat"),
+            RuntimeErrorKind::ExpectedInteger => write!(f, "this number must be an integer"),
+            RuntimeErrorKind::ExpectedPositive => write!(f, "this number must be positive"),
 
             RuntimeErrorKind::AssertionError(err) => write!(f, "{err}"),
         }

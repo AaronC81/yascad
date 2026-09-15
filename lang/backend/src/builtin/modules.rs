@@ -128,20 +128,17 @@ pub(crate) fn get_children(
     let selected_children = match &arguments["index"] {
         Object::Null => children.to_vec(),
 
-        Object::Number(num) => {
-            let index = num.round() as usize; // TODO validate integerness with proper error
-
-            // TODO: validate bounds
+        obj@Object::Number(_) => {
+            let index = obj.as_index(span.clone())?;
             vec![children[index].clone()]
         },
 
         Object::Vector(vec) => {
-            // TODO: same as number
             vec.into_iter()
-                .map(|o| o.as_number(span.clone()))
+                .map(|o| o.as_index(span.clone()))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
-                .map(|i| children[i.round() as usize].clone())
+                .map(|i| children[i].clone())
                 .collect()
         },
 

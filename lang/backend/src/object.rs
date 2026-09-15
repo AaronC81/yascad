@@ -107,6 +107,30 @@ impl Object {
         }
     }
 
+    pub fn as_integer(&self, span: InputSourceSpan) -> Result<i64, RuntimeError> {
+        let num = self.as_number(span.clone())?;
+        
+        if num.fract() == 0.0 {
+            Ok(num as i64)
+        } else {
+            Err(RuntimeError::new(
+                RuntimeErrorKind::ExpectedInteger,
+                span,
+            ))
+        }
+    }
+
+    pub fn as_index(&self, span: InputSourceSpan) -> Result<usize, RuntimeError> {
+        let int = self.as_integer(span.clone())?;
+
+        int.try_into().map_err(|_|
+            RuntimeError::new(
+                RuntimeErrorKind::ExpectedPositive,
+                span,
+            )
+        )
+    }
+
     pub fn as_string(&self, span: InputSourceSpan) -> Result<String, RuntimeError> {
         match self {
             Object::String(str) => Ok(str.clone()),
