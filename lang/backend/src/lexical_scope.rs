@@ -1,14 +1,21 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::{Rc, Weak}};
 
 use yascad_frontend::Node;
 
 use crate::{EvaluatedParameters, object::Object};
 
+#[derive(Debug, Clone)]
+pub struct UserDefinition {
+    pub parameters: EvaluatedParameters,
+    pub body: Vec<Node>,
+    pub scope: Rc<RefCell<LexicalScope>>,
+}
+
 #[derive(Debug)]
 pub struct LexicalScope {
     bindings: HashMap<String, Object>,
-    operators: HashMap<String, (EvaluatedParameters, Vec<Node>)>,
-    modules: HashMap<String, (EvaluatedParameters, Vec<Node>)>,
+    operators: HashMap<String, UserDefinition>,
+    modules: HashMap<String, UserDefinition>,
     pub parent: Option<Rc<RefCell<LexicalScope>>>,
 }
 
@@ -55,7 +62,7 @@ impl LexicalScope {
         self.bindings.insert(name, value);
     }
 
-    pub fn get_operator(&self, name: &str) -> Option<(EvaluatedParameters, Vec<Node>)> {
+    pub fn get_operator(&self, name: &str) -> Option<UserDefinition> {
         if let Some(item) = self.operators.get(name) {
             return Some(item.clone());
         }
@@ -67,7 +74,7 @@ impl LexicalScope {
         }
     }
 
-    pub fn get_module(&self, name: &str) -> Option<(EvaluatedParameters, Vec<Node>)> {
+    pub fn get_module(&self, name: &str) -> Option<UserDefinition> {
         if let Some(item) = self.modules.get(name) {
             return Some(item.clone());
         }
@@ -83,23 +90,23 @@ impl LexicalScope {
     /// 
     /// Panics if an operator with this name already exists. It's the caller's responsibility to
     /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
-    pub fn add_operator(&mut self, name: String, parameters: EvaluatedParameters, body: Vec<Node>) {
+    pub fn add_operator(&mut self, name: String, definition: UserDefinition) {
         if self.get_operator(&name).is_some() {
             panic!("operator {name} already exists");
         }
 
-        self.operators.insert(name, (parameters, body));
+        self.operators.insert(name, definition);
     }
 
     /// Add a new operator definition to this scope.
     /// 
     /// Panics if an operator with this name already exists. It's the caller's responsibility to
     /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
-    pub fn add_module(&mut self, name: String, parameters: EvaluatedParameters, body: Vec<Node>) {
+    pub fn add_module(&mut self, name: String, definition: UserDefinition) {
         if self.get_module(&name).is_some() {
             panic!("module {name} already exists");
         }
 
-        self.modules.insert(name, (parameters, body));
+        self.modules.insert(name, definition);
     }
 }

@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeI
 use manifold_csg::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
 
-use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::LexicalScope, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::{LexicalScope, UserDefinition}, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -51,8 +51,12 @@ impl<'c> ExecutionContext<'c> {
     }
 
     pub fn with_deeper_scope(&'_ self) -> ExecutionContext<'_> {
+        self.with_deeper_scope_than(self.lexical_scope.clone())
+    }
+
+    pub fn with_deeper_scope_than(&'_ self, parent: Rc<RefCell<LexicalScope>>) -> ExecutionContext<'_> {
         ExecutionContext {
-            lexical_scope: Rc::new(RefCell::new(LexicalScope::new(self.lexical_scope.clone()))),
+            lexical_scope: Rc::new(RefCell::new(LexicalScope::new(parent))),
             ..self.clone()
         }
     }
@@ -276,7 +280,7 @@ impl Interpreter {
                 // directly given the physical manifold indexes. They can do whatever they like with
                 // them.
                 match self.get_existing_name(name, ctx, node.span.clone())? {
-                    NameDefinition::UserDefinedOperator { parameters, body } => {
+                    NameDefinition::UserDefinedOperator(UserDefinition { parameters, body, scope }) => {
                         let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
 
                         let temporary_virtual_manifolds = manifold_children.into_iter()
@@ -287,7 +291,7 @@ impl Interpreter {
                             .collect::<Vec<_>>();
 
                         let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
-                            &body, ctx, Some(&temporary_virtual_manifolds), arguments, node.span.clone()
+                            &body, ctx, scope, Some(&temporary_virtual_manifolds), arguments, node.span.clone()
                         )?;
 
                         for index in temporary_virtual_manifolds {
@@ -322,10 +326,10 @@ impl Interpreter {
                         (module.action)(self, arguments, ctx.operator_children, node.span.clone())
                     }
 
-                    NameDefinition::UserDefinedModule { parameters, body } => {
+                    NameDefinition::UserDefinedModule(UserDefinition { parameters, body, scope }) => {
                         let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
                         let (geom, disp) = self.interpret_scoped_definition_body_into_geometry(
-                            &body, ctx, None, arguments, node.span.clone()
+                            &body, ctx, scope, None, arguments, node.span.clone()
                         )?;
 
                         Ok(self.manifold_table.add_into_object(geom, disp))
@@ -396,7 +400,7 @@ impl Interpreter {
                 let parameters = self.interpret_parameters(parameters, ctx)?;
                 self.add_name(
                     name,
-                    NameDefinition::UserDefinedOperator { parameters, body: body.clone() },
+                    NameDefinition::UserDefinedOperator(UserDefinition { parameters, body: body.clone(), scope: ctx.lexical_scope.clone() }),
                     &ctx, node.span.clone()
                 )?;
                 Ok(Object::Null)
@@ -406,7 +410,7 @@ impl Interpreter {
                 let parameters = self.interpret_parameters(parameters, ctx)?;
                 self.add_name(
                     name,
-                    NameDefinition::UserDefinedModule { parameters, body: body.clone() },
+                    NameDefinition::UserDefinedModule(UserDefinition { parameters, body: body.clone(), scope: ctx.lexical_scope.clone() }),
                     &ctx, node.span.clone()
                 )?;
                 Ok(Object::Null)
@@ -488,6 +492,7 @@ impl Interpreter {
         &mut self,
         nodes: &[Node],
         ctx: &ExecutionContext,
+        scope: Rc<RefCell<LexicalScope>>,
         operator_children: Option<&[GeometryTableIndex]>,
         arguments: HashMap<String, Object>,
         span: InputSourceSpan,
@@ -497,7 +502,7 @@ impl Interpreter {
             &ctx
                 .with_it_manifold(ItManifold::None)
                 .with_operator_children(operator_children)
-                .with_deeper_scope()
+                .with_deeper_scope_than(scope)
                 .with_arguments(arguments),
             span,
         )
@@ -538,16 +543,16 @@ impl Interpreter {
             return Some(NameDefinition::BuiltinModule(module))
         }
 
-        if let Some((parameters, body)) = ctx.lexical_scope.borrow().get_module(name) {
-            return Some(NameDefinition::UserDefinedModule { parameters, body })
+        if let Some(def) = ctx.lexical_scope.borrow().get_module(name) {
+            return Some(NameDefinition::UserDefinedModule(def))
         }
 
         if let Some(operator) = builtin::get_builtin_operator(name) {
             return Some(NameDefinition::BuiltinOperator(operator))
         }
 
-        if let Some((parameters, body)) = ctx.lexical_scope.borrow().get_operator(name) {
-            return Some(NameDefinition::UserDefinedOperator { parameters, body })
+        if let Some(def) = ctx.lexical_scope.borrow().get_operator(name) {
+            return Some(NameDefinition::UserDefinedOperator(def))
         }
 
         None
@@ -572,11 +577,11 @@ impl Interpreter {
             NameDefinition::Binding(object) => {
                 ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), object);
             }
-            NameDefinition::UserDefinedOperator { parameters, body } => {
-                ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), parameters, body);
+            NameDefinition::UserDefinedOperator(def) => {
+                ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), def);
             }
-            NameDefinition::UserDefinedModule  { parameters, body } => {
-                ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), parameters, body);
+            NameDefinition::UserDefinedModule(def) => {
+                ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), def);
             }
 
             NameDefinition::Argument(_)
@@ -770,16 +775,10 @@ pub enum NameDefinition {
     Argument(Object),
 
     BuiltinModule(ModuleDefinition),
-    UserDefinedModule {
-        parameters: EvaluatedParameters,
-        body: Vec<Node>,
-    },
+    UserDefinedModule(UserDefinition),
 
     BuiltinOperator(OperatorDefinition),
-    UserDefinedOperator {
-        parameters: EvaluatedParameters,
-        body: Vec<Node>,
-    },
+    UserDefinedOperator(UserDefinition),
 }
 
 impl NameDefinition {
