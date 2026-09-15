@@ -1,0 +1,19 @@
+operator stack(gap = 0) {
+    if ($children == 1) {
+        children();
+    }
+
+    if ($children > 1) {
+        child = children(0);
+
+        translate([child.max_point.x + gap, 0])
+        stack(gap = gap)
+        ...children([ 1 : $children - 1 ]);
+    }
+}
+
+stack(gap = 0.5) {
+    cube(1);
+    cube(2);
+    cube(3);
+}
