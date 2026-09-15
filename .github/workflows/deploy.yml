@@ -36,7 +36,7 @@ jobs:
       - name: Test Rust components
         run: cargo test
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@94196ee1d15439c1b6651cd87ef14e88ec435966 # v7
         with:
           node-version: lts/*
           cache: 'npm'
