@@ -31,6 +31,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install nightly Rust
+        run: rustup update nightly && rustup default nightly
       - name: Test Rust components
         run: cargo test
       - name: Set up Node
