@@ -36,6 +36,7 @@ impl GeometryDisposition {
 pub enum GeometryTableEntry {
     Manifold(Manifold),
     CrossSection(CrossSection),
+    EmptyGeometry,
 }
 
 impl GeometryTableEntry {
@@ -65,6 +66,7 @@ impl GeometryTableEntry {
             GeometryTableEntry::Manifold(manifold) => manifold.clone(),
             GeometryTableEntry::CrossSection(cross_section) =>
                 Manifold::extrude(&cross_section, CROSS_SECTION_EXTRUDE_HEIGHT),
+            GeometryTableEntry::EmptyGeometry => Manifold::empty(),
         }
     }
 }
@@ -75,10 +77,17 @@ pub struct GeometryTable {
     next_index: usize,
 }
 
+const EMPTY_GEOMETRY_INDEX: GeometryTableIndex = GeometryTableIndex(0);
+
 impl GeometryTable {
     pub fn new() -> Self {
         Self {
-            table: HashMap::new(),
+            // Index 0 is reserved for an empty geometry.
+            // All empty geometries are identical, so we only need to put one in here and always refer to it.
+            table: [
+                (EMPTY_GEOMETRY_INDEX.0, (GeometryTableEntry::EmptyGeometry, GeometryDisposition::Physical)),
+            ].into_iter().collect(),
+
             next_index: 1,
         }
     }
@@ -97,6 +106,8 @@ impl GeometryTable {
                 Object::Manifold(self.add_manifold(manifold, disposition)),
             GeometryTableEntry::CrossSection(cross_section) => 
                 Object::CrossSection(self.add_cross_section(cross_section, disposition)),
+            GeometryTableEntry::EmptyGeometry =>
+                Object::EmptyGeometry,
         }
     }
 
@@ -109,6 +120,11 @@ impl GeometryTable {
     }
 
     pub fn remove(&mut self, index: GeometryTableIndex) -> (GeometryTableEntry, GeometryDisposition) {
+        // The empty index is persistent
+        if index == EMPTY_GEOMETRY_INDEX {
+            return self.get_empty();
+        }
+
         self.table.remove(&index.0).expect("geometry not in table")
     }
 
@@ -120,11 +136,16 @@ impl GeometryTable {
         match self.get(index) {
             GeometryTableEntry::Manifold(_) => Object::Manifold(index.clone()),
             GeometryTableEntry::CrossSection(_) => Object::CrossSection(index.clone()),
+            GeometryTableEntry::EmptyGeometry => Object::EmptyGeometry,
         }
     }
 
     pub fn get_disposition(&self, index: &GeometryTableIndex) -> GeometryDisposition {
         self.table.get(&index.0).expect("geometry not in table").1
+    }
+
+    pub fn get_empty(&self) -> (GeometryTableEntry, GeometryDisposition) {
+        self.table[&EMPTY_GEOMETRY_INDEX.0].clone()
     }
 
     pub fn map(&mut self, index: GeometryTableIndex, func: impl FnOnce(GeometryTableEntry) -> GeometryTableEntry) -> GeometryTableIndex {
@@ -165,7 +186,7 @@ impl GeometryTable {
         // don't know whether to return an empty Manifold or an empty CrossSection. We need a way
         // to return a polymorphic "empty thing" but can't do that yet.
         if indices.len() == 0 {
-            return Err(RuntimeError::new(RuntimeErrorKind::ChildrenExpected, span));
+            return Ok(self.get_empty());
         }
 
         if indices.len() == 1 {
@@ -178,7 +199,15 @@ impl GeometryTable {
 
         let disposition = GeometryDisposition::flatten(&all_dispositions, span.clone())?;
         
-        let (first, rest) = all_entries.split_first().unwrap();
+        let non_empty_entries = all_entries.into_iter()
+            .filter(|geom| !matches!(geom, GeometryTableEntry::EmptyGeometry))
+            .collect::<Vec<_>>();
+
+        if non_empty_entries.is_empty() {
+            return Ok(self.get_empty())
+        }
+
+        let (first, rest) = non_empty_entries.split_first().unwrap();
     
         match first {
             GeometryTableEntry::Manifold(first_manifold) => {
@@ -203,7 +232,8 @@ impl GeometryTable {
                 
                 Ok((GeometryTableEntry::CrossSection(result), disposition))
             },
-        }        
+            GeometryTableEntry::EmptyGeometry => unreachable!("empty geometry should have been filtered out"),
+        }
     }
 
     pub fn iter_geometry(&self) -> impl Iterator<Item = &(GeometryTableEntry, GeometryDisposition)> {

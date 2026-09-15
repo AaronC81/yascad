@@ -29,6 +29,8 @@ fn translate_definition() -> OperatorDefinition {
                     let (x, y) = arguments["v"].as_2d_vector(span)?;
                     Ok((GeometryTableEntry::CrossSection(cross_section.translate(x, y)), d))
                 },
+
+                empty@(GeometryTableEntry::EmptyGeometry, _) => Ok(empty),
             }
         }
     }
@@ -122,6 +124,7 @@ fn rotate_definition() -> OperatorDefinition {
                     let angle = arguments["v"].as_number(span.clone())?;
                     GeometryTableEntry::CrossSection(cross_section.rotate(angle))
                 }
+                GeometryTableEntry::EmptyGeometry => geom,
             }, disp))
         },
     }
@@ -142,6 +145,7 @@ fn scale_definition() -> OperatorDefinition {
                     let (x, y) = arguments["v"].as_2d_vector(span.clone())?;
                     GeometryTableEntry::CrossSection(cross_section.scale(x, y))
                 }
+                GeometryTableEntry::EmptyGeometry => geom,
             }, disp))
         },
     }
@@ -162,6 +166,7 @@ fn mirror_definition() -> OperatorDefinition {
                     let (x, y) = arguments["v"].as_2d_vector(span.clone())?;
                     GeometryTableEntry::CrossSection(cross_section.mirror(x, y))
                 }
+                GeometryTableEntry::EmptyGeometry => geom,
             }, disp))
         },
     }

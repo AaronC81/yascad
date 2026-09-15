@@ -8,9 +8,11 @@ pub enum Object {
     Number(f64),
     String(String),
     Boolean(bool),
+    Vector(Vec<Object>),
+
     Manifold(GeometryTableIndex),
     CrossSection(GeometryTableIndex),
-    Vector(Vec<Object>),
+    EmptyGeometry,
 }
 
 impl Object {
@@ -20,9 +22,11 @@ impl Object {
             Object::Number(_) => "number",
             Object::String(_) => "string",
             Object::Boolean(_) => "boolean",
+            Object::Vector(_) => "vector",
+
             Object::Manifold(_) => "3D manifold",
             Object::CrossSection(_) => "2D cross-section",
-            Object::Vector(_) => "vector",
+            Object::EmptyGeometry => "empty geometry",
         }.to_owned()
     }
 
@@ -70,6 +74,12 @@ impl Object {
                     _ => None,
                 }
             },
+
+            Object::EmptyGeometry => {
+                // TODO: what should the behaviour of this be?
+                // (Do the same for empty manifolds/cross-sections too)
+                panic!("tried to access property of empty geometry");
+            }
         }
     }
 
@@ -213,6 +223,7 @@ impl PartialEq for Object {
             // Because it's a footgun, geometry never compares
             (Self::Manifold(_), Self::Manifold(_)) => false,
             (Self::CrossSection(_), Self::CrossSection(_)) => false,
+            (Self::EmptyGeometry, Self::EmptyGeometry) => false,
 
             // Not using `_` so we get exhaustiveness error for new variants
             (Self::Number(_), _)
@@ -222,6 +233,7 @@ impl PartialEq for Object {
             | (Self::Null, _)
             | (Self::Manifold(_), _)
             | (Self::CrossSection(_), _)
+            | (Self::EmptyGeometry, _)
                 => false,
         }
     }

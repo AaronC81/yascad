@@ -101,6 +101,7 @@ fn copy_definition() -> ModuleDefinition {
                     let copied_cross_section = interpreter.manifold_table.add(cross_section.clone(), GeometryDisposition::Physical);
                     Ok(Object::CrossSection(copied_cross_section))
                 }
+                Object::EmptyGeometry => Ok(Object::EmptyGeometry),
 
                 obj => {
                     return Err(RuntimeError::new(
