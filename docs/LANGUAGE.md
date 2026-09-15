@@ -54,9 +54,8 @@ c = cube(5);
 You can access properties on this geometry and use it to draw other geometry:
 
 ```
-// Another cube one unit larger
-// TODO: simplify when vector arithmetic works
-cube([c.size.x + 1, c.size.y + 1]);
+// Another cube one unit larger in all dimensions
+cube(c.size + 1);
 ```
 
 Available properties are:
