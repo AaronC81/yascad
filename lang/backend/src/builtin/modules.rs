@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::read_to_string};
 
 use manifold_csg::{CrossSection, FillRule, Manifold};
+use manifold_csg_ext::{svg_to_cross_section, text_to_cross_section};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
@@ -137,6 +138,19 @@ fn polygon_definition() -> ModuleDefinition {
     }
 }
 
+fn text_definition() -> ModuleDefinition {
+    // TODO: support ANY parameters
+    ModuleDefinition {
+        parameters: EvaluatedParameters::required(vec!["text".to_owned()]),
+        action: &|interpreter, arguments, _, span| {
+            Ok(Object::CrossSection(interpreter.manifold_table.add_cross_section(
+                text_to_cross_section(&arguments["text"].as_string(span)?),
+                GeometryDisposition::Physical,
+            )))
+        },
+    }
+}
+
 pub(crate) fn get_children(
     interpreter: &mut Interpreter,
     arguments: HashMap<String, Object>,
@@ -222,6 +236,20 @@ fn __debug_definition() -> ModuleDefinition {
     }
 }
 
+// TODO: all horribly temporary
+fn __svg_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: EvaluatedParameters::required(vec!["path".to_owned()]),
+        action: &|interpreter, arguments, _, span| {
+            let path = &arguments["path"].as_string(span)?;
+            let file_contents = read_to_string(path).unwrap();
+
+            let cross_section = svg_to_cross_section(&file_contents, 0.25).unwrap();
+            Ok(Object::CrossSection(interpreter.manifold_table.add_cross_section(cross_section, GeometryDisposition::Physical)))
+        },
+    }
+}
+
 /// Given an argument map which may contain a non-null `r` or `d`, gets the radius.
 pub fn radius_argument(arguments: &HashMap<String, Object>, span: InputSourceSpan) -> Result<f64, RuntimeError> {
     match (&arguments["r"], &arguments["d"]) {
@@ -250,9 +278,11 @@ pub fn get_builtin_module(name: &str) -> Option<ModuleDefinition> {
         "square" => Some(square_definition()),
         "circle" => Some(circle_definition()),
         "polygon" => Some(polygon_definition()),
+        "text" => Some(text_definition()),
         "copy" => Some(copy_definition()),
         "children" => Some(children_definition()),
         "__debug" => Some(__debug_definition()),
+        "__svg" => Some(__svg_definition()),
 
         _ => None,
     }

@@ -5,3 +5,9 @@ pub use stl::*;
 
 mod meshgl_ext;
 pub use meshgl_ext::*;
+
+mod svg_import;
+pub use svg_import::*;
+
+mod text;
+pub use text::*;
