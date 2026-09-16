@@ -198,7 +198,7 @@ impl Interpreter {
             NodeKind::ItReference => {
                 match ctx.it_manifold {
                     ItManifold::Some(manifold_table_index) => {
-                        Ok(Object::Manifold(manifold_table_index.clone()))
+                        Ok(self.manifold_table.index_to_object(manifold_table_index))
                     },
                     ItManifold::UnsupportedNotOneChild => {
                         Err(RuntimeError::new(
