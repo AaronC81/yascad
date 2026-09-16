@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use manifold_csg::{CrossSection, Manifold};
+use manifold_csg::{CrossSection, FillRule, Manifold};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableIndex}, object::Object};
@@ -110,6 +110,29 @@ fn copy_definition() -> ModuleDefinition {
                     ));
                 }
             }
+        },
+    }
+}
+
+fn polygon_definition() -> ModuleDefinition {
+    // TODO: does not support `paths` or `convexity`
+    ModuleDefinition {
+        parameters: EvaluatedParameters::required(vec!["points".to_owned()]),
+        action: &|interpreter, arguments, _, span| {
+            let points = arguments["points"].as_vector(span.clone())?
+                .iter()
+                .map(|pt| pt.as_2d_vector(span.clone()))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|(x, y)| [x, y])
+                .collect::<Vec<_>>();
+
+            Ok(Object::CrossSection(interpreter.manifold_table.add_cross_section(
+                // OpenSCAD uses even-odd apparently
+                // https://github.com/elalish/manifold/issues/1707#issuecomment-4939305450
+                CrossSection::from_simple_polygon_with_fill_rule(&points, FillRule::EvenOdd),
+                GeometryDisposition::Physical,
+            )))
         },
     }
 }
@@ -226,6 +249,7 @@ pub fn get_builtin_module(name: &str) -> Option<ModuleDefinition> {
         "cylinder" => Some(cylinder_definition()),
         "square" => Some(square_definition()),
         "circle" => Some(circle_definition()),
+        "polygon" => Some(polygon_definition()),
         "copy" => Some(copy_definition()),
         "children" => Some(children_definition()),
         "__debug" => Some(__debug_definition()),
