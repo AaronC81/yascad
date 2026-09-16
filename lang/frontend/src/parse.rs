@@ -61,6 +61,11 @@ pub enum NodeKind {
         op: BinaryOperator,
     },
     UnaryNegate(Box<Node>),
+    TernaryConditional {
+        condition: Box<Node>,
+        true_case: Box<Node>,
+        false_case: Box<Node>,
+    },
 
     OperatorDefinition {
         name: String,
@@ -306,7 +311,32 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_expression(&mut self) -> Option<(Node, StatementTerminator)> {
-        self.parse_comparison_expression()
+        self.parse_ternary_conditional()
+    }
+
+    fn parse_ternary_conditional(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut condition, mut terminator) = self.parse_comparison_expression()?;
+
+        if self.tokens.peek().is_some_and(|t| t.kind == TokenKind::QuestionMark) {
+            self.tokens.next().unwrap();
+
+            let (true_case, _) = self.parse_expression()?;
+            self.expect(TokenKind::Colon)?;
+            let (false_case, last_terminator) = self.parse_expression()?;
+
+            let span = condition.span.clone().union_with(&[false_case.span.clone()]);
+            condition = Node {
+                kind: NodeKind::TernaryConditional {
+                    condition: Box::new(condition),
+                    true_case: Box::new(true_case),
+                    false_case: Box::new(false_case),
+                },
+                span,
+            };
+            terminator = last_terminator;
+        }
+
+        Some((condition, terminator))
     }
 
     fn parse_comparison_expression(&mut self) -> Option<(Node, StatementTerminator)> {

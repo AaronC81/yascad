@@ -1,0 +1,8 @@
+module my_cube(big) {
+    cube(big ? 2 : 1);
+}
+
+my_cube(false);
+
+translate([3, 3])
+my_cube(true);

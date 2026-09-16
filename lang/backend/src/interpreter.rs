@@ -446,6 +446,19 @@ impl Interpreter {
                     Ok(Object::Null)
                 }
             },
+
+            NodeKind::TernaryConditional { condition, true_case, false_case } => {
+                let condition = self.interpret(condition, ctx)?.as_boolean(node.span.clone())?;
+
+                let true_value = self.interpret(true_case, &ctx)?;
+                let false_value = self.interpret(false_case, &ctx)?;
+
+                if condition {
+                    Ok(true_value)
+                } else {
+                    Ok(false_value)
+                }
+            }
         }
     }
 

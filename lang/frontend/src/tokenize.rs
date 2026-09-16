@@ -47,6 +47,7 @@ pub enum TokenKind {
     Dot,
     Colon,
     Ellipsis,
+    QuestionMark,
 
     Plus,
     Minus,
@@ -91,6 +92,7 @@ impl Display for TokenKind {
             TokenKind::Dot => write!(f, "dot"),
             TokenKind::Colon => write!(f, "colon"),
             TokenKind::Ellipsis => write!(f, "ellipsis"),
+            TokenKind::QuestionMark => write!(f, "question mark"),
 
             TokenKind::Plus => write!(f, "plus"),
             TokenKind::Minus => write!(f, "minus"),
@@ -308,6 +310,9 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             }
             ':' => {
                 tokens.push(Token::new(TokenKind::Colon, source.span(start_index, 1)))
+            }
+            '?' => {
+                tokens.push(Token::new(TokenKind::QuestionMark, source.span(start_index, 1)))
             }
 
             '+' => {
