@@ -11,3 +11,5 @@ pub use svg_import::*;
 
 mod text;
 pub use text::*;
+
+mod fonts;

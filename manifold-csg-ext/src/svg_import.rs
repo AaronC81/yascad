@@ -4,9 +4,16 @@ use kurbo::{BezPath, PathEl, flatten};
 use manifold_csg::CrossSection;
 use usvg::{Group, Node, Options, Path, Tree, tiny_skia_path::PathSegment};
 
+use crate::fonts::INCLUDED_FONTS;
+
 pub fn svg_to_cross_section(svg_content: &str, tolerance: f64) -> Result<CrossSection, usvg::Error> {
+    // TODO: cache
     let mut fontdb = usvg::fontdb::Database::new();
     fontdb.load_system_fonts();
+    for font in INCLUDED_FONTS {
+        fontdb.load_font_data(font.to_vec());
+    }
+
     let options = Options {
         fontdb: Arc::new(fontdb),
         ..Default::default()

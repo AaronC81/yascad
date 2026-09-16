@@ -7,7 +7,7 @@ pub fn text_to_cross_section(text: &str) -> CrossSection {
     // TODO: SVG-escape text
     let svg = format!(r#"
 <svg>
-    <text x="0" y="0" font-family="sans-serif">{text}</text>
+    <text x="0" y="0" font-family="Liberation Sans">{text}</text>
 </svg>
     "#);
 
