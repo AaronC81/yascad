@@ -1,47 +1,6 @@
 # YASCAD Language
 
-## OpenSCAD compatibility
-
-YASCAD is largely compatible with OpenSCAD by design, though some behaviours are deliberately different to fit better with YASCAD's additions.
-
-### Module and operator definitions
-
-In OpenSCAD, a module definition can be used as a module or an operator.
-Module definitions can use `children` to access children when used as an operator.
-
-In YASCAD, there are separate definition syntaxes for modules and operators:
-
-```
-module foo() {
-    ...
-}
-
-operator bar() {
-    ...
-}
-```
-
-They can only be used in those defined positions.
-It is an error to use a module definition as an operator, and vice-versa.
-
-Only operator definitions can use `children`.
-
-### Stricter operators
-
-In OpenSCAD, various operations produce a warning and then continue evaluation with `undef`.
-For example, using identifiers which haven't been defined, or passing invalid arguments.
-
-In YASCAD, these are runtime errors instead.
-
-### Little conveniences
-
-YASCAD lets you do arithmetic with scalars and vectors, which isn't possible in OpenSCAD:
-
-```
-[1, 2, 3] + 1
-// equivalent to
-[1 + 1, 2 + 1, 3 + 1]
-```
+This describes the additions made to YASCAD on top of the [largely OpenSCAD-compatible base.](./OPENSCAD.md)
 
 ## Inspecting geometry
 
