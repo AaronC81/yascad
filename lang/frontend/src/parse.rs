@@ -61,6 +61,7 @@ pub enum NodeKind {
         op: BinaryOperator,
     },
     UnaryNegate(Box<Node>),
+    UnaryNot(Box<Node>),
     TernaryConditional {
         condition: Box<Node>,
         true_case: Box<Node>,
@@ -657,6 +658,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 let span = span.union_with(slice::from_ref(&value.span));
                 Some((
                     Node::new(NodeKind::UnaryNegate(Box::new(value)), span),
+                    terminator,
+                ))
+            }
+
+            TokenKind::ExclamationMark => {
+                let (value, terminator) = self.parse_bottom_expression()?;
+                let span = span.union_with(slice::from_ref(&value.span));
+                Some((
+                    Node::new(NodeKind::UnaryNot(Box::new(value)), span),
                     terminator,
                 ))
             }

@@ -419,6 +419,11 @@ impl Interpreter {
                 Ok(Object::Number(-value))
             },
 
+            NodeKind::UnaryNot(value) => {
+                let value = self.interpret(value, ctx)?.as_boolean(node.span.clone())?;
+                Ok(Object::Boolean(!value))
+            },
+
             NodeKind::OperatorDefinition { name, parameters, body } => {
                 let parameters = self.interpret_parameters(parameters, ctx)?;
                 self.add_name(

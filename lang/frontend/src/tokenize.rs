@@ -49,6 +49,7 @@ pub enum TokenKind {
     Colon,
     Ellipsis,
     QuestionMark,
+    ExclamationMark,
 
     DoubleAmpersand,
     DoublePipe,
@@ -98,6 +99,7 @@ impl Display for TokenKind {
             TokenKind::Colon => write!(f, "colon"),
             TokenKind::Ellipsis => write!(f, "ellipsis"),
             TokenKind::QuestionMark => write!(f, "question mark"),
+            TokenKind::ExclamationMark => write!(f, "exclamation mark"),
 
             TokenKind::DoubleAmpersand => write!(f, "double-ampersand"),
             TokenKind::DoublePipe => write!(f, "double-pipe"),
@@ -321,6 +323,9 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             }
             '?' => {
                 tokens.push(Token::new(TokenKind::QuestionMark, source.span(start_index, 1)))
+            }
+            '!' => {
+                tokens.push(Token::new(TokenKind::ExclamationMark, source.span(start_index, 1)))
             }
 
             '&' if chars.peek().is_some_and(|(_, char)| *char == '&') => {
