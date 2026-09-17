@@ -100,7 +100,44 @@ The OpenSCAD feature set on this table comes from the [cheat sheet](https://open
 
 ### Functions
 
-No functions are supported yet.
-
-As a temporary substitute for `len`, vectors have a `.length` property.
-
+| Name | Compatibility |
+|----------|---------------|
+| `abs` | ❌ |
+| `sign` | ❌ |
+| `sin` | ❌ |
+| `cos` | ❌ |
+| `tan` | ❌ |
+| `acos` | ❌ |
+| `asin` | ❌ |
+| `atan` | ❌ |
+| `atan2` | ❌ |
+| `floor` | ❌ |
+| `round` | ❌ |
+| `ceil` | ❌ |
+| `ln` | ❌ |
+| `len` | ✅ |
+| `let` | ❌ |
+| `log` | ❌ |
+| `pow` | ❌ |
+| `sqrt` | ❌ |
+| `exp` | ❌ |
+| `rands` | ❌ |
+| `min` | ❌ |
+| `max` | ❌ |
+| `norm` | ❌ |
+| `cross` | ❌ |
+| `is_undef` | ❌ |
+| `is_bool` | ❌ |
+| `is_num` | ❌ |
+| `is_string` | ❌ |
+| `is_list` | ❌ |
+| `is_function` | ❌ |
+| `concat` | ❌ |
+| `lookup` | ❌ |
+| `str` | ❌ |
+| `chr` | ❌ |
+| `ord` | ❌ |
+| `search` | ❌ |
+| `version` | ❌ |
+| `version_num` | ❌ |
+| `parent_module` | ❌ |

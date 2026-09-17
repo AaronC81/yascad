@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeI
 use manifold_csg::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
 
-use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::{LexicalScope, UserDefinition}, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, FunctionDefinition, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::{LexicalScope, UserDefinition}, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -335,6 +335,11 @@ impl Interpreter {
                         Ok(self.manifold_table.add_into_object(geom, disp))
                     }
 
+                    NameDefinition::BuiltinFunction(module) => {
+                        let arguments = self.match_arguments_to_parameters(arguments, module.parameters, node.span.clone())?;
+                        (module.action)(self, arguments, node.span.clone())
+                    }
+
                     NameDefinition::UserDefinedFunction(UserDefinition { parameters, body, scope }) => {
                         // Enforced by parsing
                         if body.len() != 1 {
@@ -589,6 +594,10 @@ impl Interpreter {
             return Some(NameDefinition::UserDefinedOperator(def))
         }
 
+        if let Some(function) = builtin::get_builtin_function(name) {
+            return Some(NameDefinition::BuiltinFunction(function))
+        }
+
         if let Some(def) = ctx.lexical_scope.borrow().get_function(name) {
             return Some(NameDefinition::UserDefinedFunction(def))
         }
@@ -627,7 +636,8 @@ impl Interpreter {
 
             NameDefinition::Argument(_)
             | NameDefinition::BuiltinModule(_)
-            | NameDefinition::BuiltinOperator(_) => panic!("cannot add new definition of this type"),
+            | NameDefinition::BuiltinOperator(_)
+            | NameDefinition::BuiltinFunction(_) => panic!("cannot add new definition of this type"),
         }
 
         Ok(())
@@ -821,6 +831,7 @@ pub enum NameDefinition {
     BuiltinOperator(OperatorDefinition),
     UserDefinedOperator(UserDefinition),
 
+    BuiltinFunction(FunctionDefinition),
     UserDefinedFunction(UserDefinition),
 }
 
@@ -833,6 +844,7 @@ impl NameDefinition {
             NameDefinition::UserDefinedModule { .. } => "user-defined module",
             NameDefinition::BuiltinOperator(_) => "built-in operator",
             NameDefinition::UserDefinedOperator { .. } => "user-defined operator",
+            NameDefinition::BuiltinFunction(_) => "built-in function",
             NameDefinition::UserDefinedFunction { .. } => "user-defined function",
         }.to_string()
     }
