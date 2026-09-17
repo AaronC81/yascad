@@ -77,6 +77,11 @@ pub enum NodeKind {
         parameters: Parameters,
         body: Vec<Node>,
     },
+    FunctionDefinition {
+        name: String,
+        parameters: Parameters,
+        body: Box<Node>,
+    },
 
     ForLoop {
         loop_variable: String,
@@ -211,7 +216,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_statement(&mut self) -> Option<Node> {
         // Try parse operator definition
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwOperator) {
-            let (name, parameters, body, span) = self.parse_definition()?;
+            let (name, parameters, body, span) = self.parse_block_definition()?;
             return Some(Node::new(
                 NodeKind::OperatorDefinition {
                     name: name.to_owned(),
@@ -224,12 +229,34 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
         // Try parse module definition
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwModule) {
-            let (name, parameters, body, span) = self.parse_definition()?;
+            let (name, parameters, body, span) = self.parse_block_definition()?;
             return Some(Node::new(
                 NodeKind::ModuleDefinition {
                     name: name.to_owned(),
                     parameters,
                     body,
+                },
+                span,
+            ))
+        }
+
+        // Try parse function definition
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwFunction) {
+            let Token { span: start_span, .. } = self.tokens.next().unwrap();
+
+            let (name, parameters) = self.parse_definition_signature()?;
+
+            self.expect(TokenKind::Equals)?;
+            let (body, _) = self.parse_expression()?;
+            let Token { span: end_span, .. } = self.expect(TokenKind::Semicolon)??;
+
+            let span = start_span.union_with(&[end_span]);
+
+            return Some(Node::new(
+                NodeKind::FunctionDefinition {
+                    name: name.to_owned(),
+                    parameters,
+                    body: Box::new(body),
                 },
                 span,
             ))
@@ -630,10 +657,26 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     ///   - Parameters
     ///   - Body
     ///   - Span of entire definition
-    fn parse_definition(&mut self) -> Option<(String, Parameters, Vec<Node>, InputSourceSpan)> {
+    fn parse_block_definition(&mut self) -> Option<(String, Parameters, Vec<Node>, InputSourceSpan)> {
         let Token { span: start_span, .. } = self.tokens.next().unwrap();
 
-        let (name, _) = self.expect_identifier()?;
+        let (name, parameters) = self.parse_definition_signature()?;
+
+        // Parse body
+        let body = self.parse_braced_statement_list()?;
+        let body_spans = body
+            .iter()
+            .map(|item| item.span.clone())
+            .collect::<Vec<_>>();
+
+        let span = start_span.union_with(&body_spans);
+
+        Some((name.to_owned(), parameters, body, span))
+    }
+
+    /// Parse the name and parameters of a definition.
+    fn parse_definition_signature(&mut self) -> Option<(String, Parameters)> {
+        let (name, start_span) = self.expect_identifier()?;
 
         // Parse parameters
         self.expect(TokenKind::LParen)?;
@@ -666,16 +709,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
         }
 
-        // Parse body
-        let body = self.parse_braced_statement_list()?;
-        let body_spans = body
-            .iter()
-            .map(|item| item.span.clone())
-            .collect::<Vec<_>>();
-
-        let span = start_span.union_with(&body_spans);
-
-        Some((name.to_owned(), parameters, body, span))
+        Some((name, parameters))
     }
 
     fn parse_argument_list(&mut self) -> Option<(Arguments, InputSourceSpan)> {

@@ -16,6 +16,7 @@ pub struct LexicalScope {
     bindings: HashMap<String, Object>,
     operators: HashMap<String, UserDefinition>,
     modules: HashMap<String, UserDefinition>,
+    functions: HashMap<String, UserDefinition>,
     pub parent: Option<Rc<RefCell<LexicalScope>>>,
 }
 
@@ -25,6 +26,7 @@ impl LexicalScope {
             bindings: HashMap::new(),
             operators: HashMap::new(),
             modules: HashMap::new(),
+            functions: HashMap::new(),
             parent: None,
         }
     }
@@ -34,6 +36,7 @@ impl LexicalScope {
             bindings: HashMap::new(),
             operators: HashMap::new(),
             modules: HashMap::new(),
+            functions: HashMap::new(),
             parent: Some(parent),
         }
     }
@@ -86,6 +89,18 @@ impl LexicalScope {
         }
     }
 
+    pub fn get_function(&self, name: &str) -> Option<UserDefinition> {
+        if let Some(item) = self.functions.get(name) {
+            return Some(item.clone());
+        }
+
+        if let Some(parent) = self.parent.as_ref() {
+            parent.borrow().get_function(name)
+        } else {
+            None
+        }
+    }
+
     /// Add a new operator definition to this scope.
     /// 
     /// Panics if an operator with this name already exists. It's the caller's responsibility to
@@ -108,5 +123,17 @@ impl LexicalScope {
         }
 
         self.modules.insert(name, definition);
+    }
+
+    /// Add a new function definition to this scope.
+    /// 
+    /// Panics if a function with this name already exists. It's the caller's responsibility to
+    /// check for conflicts, as it may have names beyond the lexical scope which we don't know about.
+    pub fn add_function(&mut self, name: String, definition: UserDefinition) {
+        if self.get_function(&name).is_some() {
+            panic!("function {name} already exists");
+        }
+
+        self.functions.insert(name, definition);
     }
 }

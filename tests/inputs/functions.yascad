@@ -1,0 +1,3 @@
+function mult(x, y) = x * y;
+
+cube(mult(2, 3));

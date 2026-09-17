@@ -335,6 +335,17 @@ impl Interpreter {
                         Ok(self.manifold_table.add_into_object(geom, disp))
                     }
 
+                    NameDefinition::UserDefinedFunction(UserDefinition { parameters, body, scope }) => {
+                        // Enforced by parsing
+                        if body.len() != 1 {
+                            unreachable!("functions should only have one node")
+                        }
+                        let body = body.first().unwrap();
+
+                        let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
+                        self.interpret(body, &ctx.with_deeper_scope_than(scope).with_arguments(arguments))
+                    }
+
                     def => Err(RuntimeError::new(
                         RuntimeErrorKind::InvalidIdentifier {
                             id: name.to_owned(),
@@ -411,6 +422,16 @@ impl Interpreter {
                 self.add_name(
                     name,
                     NameDefinition::UserDefinedModule(UserDefinition { parameters, body: body.clone(), scope: ctx.lexical_scope.clone() }),
+                    &ctx, node.span.clone()
+                )?;
+                Ok(Object::Null)
+            },
+
+            NodeKind::FunctionDefinition { name, parameters, body } => {
+                let parameters = self.interpret_parameters(parameters, ctx)?;
+                self.add_name(
+                    name,
+                    NameDefinition::UserDefinedFunction(UserDefinition { parameters, body: vec![*body.clone()], scope: ctx.lexical_scope.clone() }),
                     &ctx, node.span.clone()
                 )?;
                 Ok(Object::Null)
@@ -568,6 +589,10 @@ impl Interpreter {
             return Some(NameDefinition::UserDefinedOperator(def))
         }
 
+        if let Some(def) = ctx.lexical_scope.borrow().get_function(name) {
+            return Some(NameDefinition::UserDefinedFunction(def))
+        }
+
         None
     }
 
@@ -595,6 +620,9 @@ impl Interpreter {
             }
             NameDefinition::UserDefinedModule(def) => {
                 ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), def);
+            }
+            NameDefinition::UserDefinedFunction(def) => {
+                ctx.lexical_scope.borrow_mut().add_function(name.to_owned(), def);
             }
 
             NameDefinition::Argument(_)
@@ -792,6 +820,8 @@ pub enum NameDefinition {
 
     BuiltinOperator(OperatorDefinition),
     UserDefinedOperator(UserDefinition),
+
+    UserDefinedFunction(UserDefinition),
 }
 
 impl NameDefinition {
@@ -803,6 +833,7 @@ impl NameDefinition {
             NameDefinition::UserDefinedModule { .. } => "user-defined module",
             NameDefinition::BuiltinOperator(_) => "built-in operator",
             NameDefinition::UserDefinedOperator { .. } => "user-defined operator",
+            NameDefinition::UserDefinedFunction { .. } => "user-defined function",
         }.to_string()
     }
 }
