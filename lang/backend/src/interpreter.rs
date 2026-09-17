@@ -404,6 +404,13 @@ impl Interpreter {
                     BinaryOperator::LessThanOrEquals => numeric_comparison_binop(&|l, r| l <= r),
                     BinaryOperator::GreaterThan => numeric_comparison_binop(&|l, r| l > r),
                     BinaryOperator::GreaterThanOrEquals => numeric_comparison_binop(&|l, r| l >= r),
+
+                    BinaryOperator::BooleanAnd => Ok(Object::Boolean(
+                        left.as_boolean(node.span.clone())? && right.as_boolean(node.span.clone())?,
+                    )),
+                    BinaryOperator::BooleanOr => Ok(Object::Boolean(
+                        left.as_boolean(node.span.clone())? || right.as_boolean(node.span.clone())?,
+                    )),
                 }
             },
 

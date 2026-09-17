@@ -114,6 +114,9 @@ pub enum BinaryOperator {
     Multiply,
     Divide,
 
+    BooleanAnd,
+    BooleanOr,
+
     Equals,
     LessThan,
     LessThanOrEquals,
@@ -342,7 +345,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_ternary_conditional(&mut self) -> Option<(Node, StatementTerminator)> {
-        let (mut condition, mut terminator) = self.parse_comparison_expression()?;
+        let (mut condition, mut terminator) = self.parse_boolean_or_expression()?;
 
         if self.tokens.peek().is_some_and(|t| t.kind == TokenKind::QuestionMark) {
             self.tokens.next().unwrap();
@@ -364,6 +367,50 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
 
         Some((condition, terminator))
+    }
+
+    fn parse_boolean_or_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut left, mut terminator) = self.parse_boolean_and_expression()?;
+
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::DoublePipe) {
+            self.tokens.next().unwrap();
+
+            let (right, right_terminator) = self.parse_boolean_and_expression()?;
+            let span = left.span.union_with(slice::from_ref(&right.span));
+            left = Node::new(
+                NodeKind::BinaryOperation {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op: BinaryOperator::BooleanOr,
+                },
+                span,
+            );
+            terminator = right_terminator;
+        }
+
+        Some((left, terminator))
+    }
+
+    fn parse_boolean_and_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut left, mut terminator) = self.parse_comparison_expression()?;
+
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::DoubleAmpersand) {
+            self.tokens.next().unwrap();
+
+            let (right, right_terminator) = self.parse_comparison_expression()?;
+            let span = left.span.union_with(slice::from_ref(&right.span));
+            left = Node::new(
+                NodeKind::BinaryOperation {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op: BinaryOperator::BooleanAnd,
+                },
+                span,
+            );
+            terminator = right_terminator;
+        }
+
+        Some((left, terminator))
     }
 
     fn parse_comparison_expression(&mut self) -> Option<(Node, StatementTerminator)> {
