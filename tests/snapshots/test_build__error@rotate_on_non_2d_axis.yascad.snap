@@ -1,0 +1,6 @@
+---
+source: tests/test_build.rs
+expression: errors
+input_file: tests/bad_inputs/rotate_on_non_2d_axis.yascad
+---
+2D geometry may only be rotated around the Z axis

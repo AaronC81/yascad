@@ -33,6 +33,21 @@ For example, using identifiers which haven't been defined, or passing invalid ar
 
 In YASCAD, these are runtime errors instead.
 
+### 3D operations on 2D geometry
+
+OpenSCAD permits performing some 3D transformations on 2D geometry.
+If the geometry is extruded, the operation acts on a 2D projection on the X-Y plane.
+For example, this operation extrudes a cuboid whose length on the X axis is `sin(45deg)`:
+
+```
+linear_extrude(1)
+rotate([0, 45, 0])
+square(1);
+```
+
+YASCAD does not support this.
+3D transformations on 2D geometry are an error.
+
 ### Little conveniences
 
 YASCAD lets you do arithmetic with scalars and vectors, which isn't possible in OpenSCAD:

@@ -115,14 +115,28 @@ fn rotate_definition() -> OperatorDefinition {
         action: &|interpreter, arguments, children, span| {
             let (geom, disp) = interpreter.manifold_table.remove_many_into_union(children, span.clone())?;
 
+            let arg = &arguments["v"];
+            let (x, y, z) = match &arg {
+                Object::Number(angle) => (0.0, 0.0, *angle),
+                Object::Vector(_) => arg.as_3d_vector(span.clone())?,
+                _ => return Err(RuntimeError::new(
+                    RuntimeErrorKind::IncorrectType {
+                        expected: "number or 3D vector".to_owned(),
+                        actual: arg.describe_type(),
+                    },
+                    span
+                ))
+            };
+
             Ok((match geom {
                 GeometryTableEntry::Manifold(manifold) => {
-                    let (x, y, z) = arguments["v"].as_3d_vector(span.clone())?;
                     GeometryTableEntry::Manifold(manifold.rotate(x, y, z))
                 }
                 GeometryTableEntry::CrossSection(cross_section) => {
-                    let angle = arguments["v"].as_number(span.clone())?;
-                    GeometryTableEntry::CrossSection(cross_section.rotate(angle))
+                    if x != 0.0 || y != 0.0 {
+                        return Err(RuntimeError::new(RuntimeErrorKind::CannotRotate2DGeometryOnAxis, span));
+                    }
+                    GeometryTableEntry::CrossSection(cross_section.rotate(z))
                 }
                 GeometryTableEntry::EmptyGeometry => geom,
             }, disp))

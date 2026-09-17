@@ -1,0 +1,6 @@
+rotate(45)
+cube(1);
+
+translate([2, 2])
+rotate(45)
+square(1);
