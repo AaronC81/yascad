@@ -1,0 +1,4 @@
+sphere(r=5);
+
+translate([10, 10])
+sphere(d=10);

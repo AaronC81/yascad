@@ -52,6 +52,21 @@ fn cylinder_definition() -> ModuleDefinition {
     }
 }
 
+fn sphere_definition() -> ModuleDefinition {
+    ModuleDefinition {
+        parameters: EvaluatedParameters {
+            required: vec![],
+            optional: vec![("r".to_owned(), Object::Null)],
+            optional_named_only: vec![("d".to_owned(), Object::Null)],
+        },
+        action: &|interpreter, arguments, _, span| {
+            let radius = radius_argument(&arguments, span)?;
+
+            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::sphere(radius, interpreter.circle_segments), GeometryDisposition::Physical)))
+        },
+    }
+}
+
 fn square_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: EvaluatedParameters::required(vec!["size".to_owned()]),
@@ -275,12 +290,16 @@ pub fn get_builtin_module(name: &str) -> Option<ModuleDefinition> {
     match name {
         "cube" => Some(cube_definition()),
         "cylinder" => Some(cylinder_definition()),
+        "sphere" => Some(sphere_definition()),
+
         "square" => Some(square_definition()),
         "circle" => Some(circle_definition()),
         "polygon" => Some(polygon_definition()),
         "text" => Some(text_definition()),
+
         "copy" => Some(copy_definition()),
         "children" => Some(children_definition()),
+
         "__debug" => Some(__debug_definition()),
         "__svg" => Some(__svg_definition()),
 

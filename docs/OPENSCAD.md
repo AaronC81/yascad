@@ -55,7 +55,7 @@ The OpenSCAD feature set on this table comes from the [cheat sheet](https://open
 | `square` | ✅ |
 | `polygon` | 🟠 Only points, no paths |
 | `text` | 🟠 No font, size, or alignment control |
-| `sphere` | ❌ |
+| `sphere` | ✅ |
 | `cube` | ✅ |
 | `cylinder` | 🟠 No cone forms |
 | `polyhedron` | ❌ |
