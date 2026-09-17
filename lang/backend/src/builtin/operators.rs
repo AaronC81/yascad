@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use manifold_csg::Manifold;
+use manifold_csg::{CrossSection, Manifold};
 use yascad_frontend::InputSourceSpan;
 
 use crate::{EvaluatedParameters, Interpreter, RuntimeError, RuntimeErrorKind, geometry_table::{GeometryDisposition, GeometryTableEntry, GeometryTableIndex}, object::Object};
@@ -70,6 +70,40 @@ fn difference_definition() -> OperatorDefinition {
 
                 _ => {
                     Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span))
+                }
+            }
+        }
+    }
+}
+
+fn intersection_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: EvaluatedParameters::empty(),
+        action: &|interpreter, _, mut children, span| {
+            if children.is_empty() {
+                return Ok(interpreter.manifold_table.get_empty())
+            }
+
+            let (mut result, disp) = interpreter.manifold_table.remove(children.remove(0));
+            
+            loop {
+                if children.is_empty() {
+                    return Ok((result, disp))
+                }
+
+                let (this_child, _) = interpreter.manifold_table.remove(children.remove(0));
+                result = match (result, this_child) {
+                    (GeometryTableEntry::Manifold(result_manifold), GeometryTableEntry::Manifold(this_manifold)) => {
+                        GeometryTableEntry::Manifold(result_manifold.intersection(&this_manifold))
+                    },
+
+                    (GeometryTableEntry::CrossSection(result_cross_section), GeometryTableEntry::CrossSection(this_cross_section)) => {
+                        GeometryTableEntry::CrossSection(result_cross_section.intersection(&this_cross_section))
+                    },
+
+                    _ => {
+                        return Err(RuntimeError::new(RuntimeErrorKind::MixedGeometryDimensions, span))
+                    }
                 }
             }
         }
@@ -218,6 +252,7 @@ pub fn get_builtin_operator(name: &str) -> Option<OperatorDefinition> {
         "translate" => Some(translate_definition()),
         "union" => Some(union_definition()),
         "difference" => Some(difference_definition()),
+        "intersection" => Some(intersection_definition()),
         "linear_extrude" => Some(linear_extrude_definition()),
         "rotate_extrude" => Some(rotate_extrude_definition()),
         "rotate" => Some(rotate_definition()),

@@ -86,7 +86,7 @@ The OpenSCAD feature set on this table comes from the [cheat sheet](https://open
 |----------|---------------|
 | `union` | ✅ |
 | `difference` | ✅ |
-| `intersection` | ❌ |
+| `intersection` | ✅ |
 | `transform` | ✅ |
 | `rotate` | 🟠 Only simple vector, no arbitrary axes |
 | `scale` | ✅ |

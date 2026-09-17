@@ -1,0 +1,27 @@
+intersection() {}
+
+// No-op
+intersection() {
+    circle(r=1);
+}
+
+// One child
+translate([3, 0])
+intersection() {
+    circle(r=1);
+
+    translate([1, 0])
+    circle(r=1);
+}
+
+// Two children
+translate([6, 0])
+intersection() {
+    circle(r=1);
+
+    translate([1, 0])
+    circle(r=1);
+
+    translate([0.5, 0.5])
+    circle(r=1);
+}
