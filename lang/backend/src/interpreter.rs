@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeInclusive, rc::Rc};
 
 use manifold_csg::Manifold;
-use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters};
+use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters, VectorLiteralItem, VectorLiteralItemKind};
 
 use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, FunctionDefinition, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::{LexicalScope, UserDefinition}, object::Object};
 
@@ -169,8 +169,11 @@ impl Interpreter {
             NodeKind::VectorLiteral(items) => {
                 Ok(Object::Vector(
                     items.iter()
-                        .map(|node| self.interpret(node, ctx))
+                        .map(|node| self.interpret_vector_item(node, ctx))
                         .collect::<Result<Vec<_>, _>>()?
+                        .into_iter()
+                        .flatten()
+                        .collect()
                 ))
             },
 
@@ -539,6 +542,34 @@ impl Interpreter {
                     Ok(false_value)
                 }
             }
+        }
+    }
+
+    /// Execute a vector literal item.
+    /// Returns the items which should be added into the vector (flattened) for this literal item
+    /// or comprehension.
+    pub fn interpret_vector_item(&mut self, node: &VectorLiteralItem, ctx: &ExecutionContext) -> Result<Vec<Object>, RuntimeError> {
+        match &node.kind {
+            VectorLiteralItemKind::Value(node) => {
+                let item = self.interpret(&node, ctx)?;
+                Ok(vec![item])
+            },
+            VectorLiteralItemKind::EachComprehension { body } => {
+                let body = self.interpret_vector_item(&body, ctx)?;
+                let flattened_items = body.into_iter()
+                    .map(|item| {
+                        item.as_vector(node.span.clone()).map(|slice| slice.to_vec())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                Ok(flattened_items)
+            }
+
+            VectorLiteralItemKind::ForComprehension { loop_variable, loop_source, body } => todo!(),
+            VectorLiteralItemKind::IfComprehension { condition, body } => todo!(),
         }
     }
 

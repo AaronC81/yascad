@@ -23,7 +23,7 @@ pub enum NodeKind {
     NumberLiteral(f64),
     StringLiteral(String),
     BooleanLiteral(bool),
-    VectorLiteral(Vec<Node>),
+    VectorLiteral(Vec<VectorLiteralItem>),
     VectorRangeLiteral {
         start: Box<Node>,
         end: Box<Node>,
@@ -101,6 +101,35 @@ pub enum NodeKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct VectorLiteralItem {
+    pub kind: VectorLiteralItemKind,
+    pub span: InputSourceSpan,
+}
+
+impl VectorLiteralItem {
+    pub fn new(kind: VectorLiteralItemKind, span: InputSourceSpan) -> Self {
+        Self { kind, span }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum VectorLiteralItemKind {
+    Value(Box<Node>),
+    ForComprehension {
+        loop_variable: String,
+        loop_source: Box<Node>,
+        body: Box<VectorLiteralItem>,
+    },
+    IfComprehension {
+        condition: Box<Node>,
+        body: Box<VectorLiteralItem>,
+    },
+    EachComprehension {
+        body: Box<VectorLiteralItem>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Parameters {
     pub required: Vec<String>,
     pub optional: Vec<(String, Node)>,
@@ -173,6 +202,7 @@ pub enum ParseErrorKind {
     PositionalArgumentAfterNamedArgument,
     NamedSplat,
     MultipleSplat,
+    ComprehensionInRange,
 }
 
 impl Display for ParseErrorKind {
@@ -185,6 +215,7 @@ impl Display for ParseErrorKind {
             ParseErrorKind::PositionalArgumentAfterNamedArgument => write!(f, "positional argument appears after named arguments - positional arguments must come first"),
             ParseErrorKind::NamedSplat => write!(f, "splat arguments cannot be named"),
             ParseErrorKind::MultipleSplat => write!(f, "only one splat argument can be specified"),
+            ParseErrorKind::ComprehensionInRange => write!(f, "comprehensions cannot appear in ranges"),
         }
     }
 }
@@ -645,7 +676,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
                 // Parse the first item ourselves, because we need to check whether this is an
                 // item-based vector or a range vector.
-                let (first_item, _) = self.parse_expression()?;
+                let first_item = self.parse_vector_literal_item()?;
 
                 match self.tokens.peek() {
                     // Single-item vector
@@ -660,7 +691,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     Some(Token { kind: TokenKind::Comma, .. }) => {
                         self.tokens.next().unwrap();
 
-                        let (mut items, end_span) = self.parse_bracketed_comma_separated_expression_list(TokenKind::RBracket)?;
+                        let (mut items, end_span) = self.parse_bracketed_comma_separated_list(TokenKind::RBracket, |p|
+                            p.parse_vector_literal_item())?;
                         items.insert(0, first_item);
 
                         let vector_span = span.union_with(slice::from_ref(&end_span));
@@ -670,6 +702,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     // Range vector
                     Some(Token { kind: TokenKind::Colon, .. }) => {
                         self.tokens.next().unwrap();
+
+                        let VectorLiteralItem { kind: VectorLiteralItemKind::Value(first_item), .. } = first_item else {
+                            self.errors.push(ParseError::new(
+                                ParseErrorKind::ComprehensionInRange,
+                                span,
+                            ));
+                            return None;
+                        };
 
                         let (second_item, _) = self.parse_expression()?;
 
@@ -686,12 +726,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
                         let vector_literal = match third_item {
                             Some(third_item) => NodeKind::VectorRangeLiteral {
-                                start: Box::new(first_item),
+                                start: first_item,
                                 end: Box::new(third_item),
                                 step: Some(Box::new(second_item)),
                             },
                             None => NodeKind::VectorRangeLiteral {
-                                start: Box::new(first_item),
+                                start: first_item,
                                 end: Box::new(second_item),
                                 step: None,
                             },
@@ -1039,6 +1079,50 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             },
             span,
         ), terminator))
+    }
+
+    // (Assumes `[` was already removed)
+    fn parse_vector_literal_item(&mut self) -> Option<VectorLiteralItem> {
+        // List comprehensions are really fiddly, I've tried to figure them out by a bit of trial
+        // and error...
+        //
+        // They can begin with any combination and order of:
+        //   - `for`
+        //   - `if` - filter whether items are included at all
+        //   - `each` - flatten results (after a `for`)
+        //
+        // These are VERY flexible:
+        //   - A vector literal can contain multiple comprehensions, interspersed with plain expressions:
+        //     `[for (i = [0:1]) i, "hello", for (i = [5:6]) i] -> [0, 1, "hello", 5, 6]`
+        //   - You can use `each` alone to flatten vectors: 
+        //     `[each [1, 2], each [3, 4]] -> `[1, 2, 3, 4]`
+        //   - `if` can appear before anything else to control whether the list is empty:
+        //     `[if (...) for (...) ...]`
+        //
+        match self.tokens.peek() {
+            // TODO: for
+            // TODO: if
+
+            Some(Token { kind: TokenKind::KwEach, .. }) => {
+                let Token { span, .. } = self.tokens.next()?;
+
+                let body = self.parse_vector_literal_item()?;
+                let span = span.union_with(&[body.span.clone()]);
+                Some(VectorLiteralItem::new(
+                    VectorLiteralItemKind::EachComprehension { body: Box::new(body) },
+                    span,
+                ))
+            },
+            
+            _ => {
+                let (value, _) = self.parse_expression()?;
+                let span = value.span.clone();
+                Some(VectorLiteralItem::new(
+                    VectorLiteralItemKind::Value(Box::new(value)),
+                    span,
+                ))
+            },
+        }
     }
 
     /// Consume a token which is expected to be of a certain kind, generating an error if it's not.
