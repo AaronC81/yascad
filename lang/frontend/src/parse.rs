@@ -121,6 +121,7 @@ pub enum BinaryOperator {
     BooleanOr,
 
     Equals,
+    NotEquals,
     LessThan,
     LessThanOrEquals,
     GreaterThan,
@@ -422,6 +423,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         while let Some(Token { kind, .. }) = self.tokens.peek() {
             let op = match kind {
                 TokenKind::DoubleEquals => BinaryOperator::Equals,
+                TokenKind::ExclamationMarkEquals => BinaryOperator::NotEquals,
                 TokenKind::LAngle => BinaryOperator::LessThan,
                 TokenKind::LAngleEquals => BinaryOperator::LessThanOrEquals,
                 TokenKind::RAngle => BinaryOperator::GreaterThan,

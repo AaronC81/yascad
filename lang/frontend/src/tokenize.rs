@@ -62,6 +62,7 @@ pub enum TokenKind {
     Caret,
 
     Equals,
+    ExclamationMarkEquals,
     DoubleEquals,
     LAngleEquals,
     RAngleEquals,
@@ -114,6 +115,7 @@ impl Display for TokenKind {
             TokenKind::Caret => write!(f, "caret"),
 
             TokenKind::Equals => write!(f, "equals"),
+            TokenKind::ExclamationMarkEquals => write!(f, "not-equals"),
             TokenKind::DoubleEquals => write!(f, "double-equals"),
             TokenKind::LAngleEquals => write!(f, "less-than-or-equals"),
             TokenKind::RAngleEquals => write!(f, "greater-than-or-equals"),
@@ -318,7 +320,12 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 tokens.push(Token::new(TokenKind::QuestionMark, source.span(start_index, 1)))
             }
             '!' => {
-                tokens.push(Token::new(TokenKind::ExclamationMark, source.span(start_index, 1)))
+                if chars.peek().is_some_and(|(_, c)| *c == '=') {
+                    chars.next().unwrap();
+                    tokens.push(Token::new(TokenKind::ExclamationMarkEquals, source.span(start_index, 2)))
+                } else {
+                    tokens.push(Token::new(TokenKind::ExclamationMark, source.span(start_index, 1)))
+                }
             }
 
             '&' if chars.peek().is_some_and(|(_, char)| *char == '&') => {

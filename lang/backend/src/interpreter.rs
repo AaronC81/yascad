@@ -401,6 +401,7 @@ impl Interpreter {
                     BinaryOperator::Power => self.apply_numeric_binop(left, right, &|l, r| l.powf(r), &node.span),
 
                     BinaryOperator::Equals => Ok(Object::Boolean(left == right)),
+                    BinaryOperator::NotEquals => Ok(Object::Boolean(left != right)),
 
                     BinaryOperator::LessThan => numeric_comparison_binop(&|l, r| l < r),
                     BinaryOperator::LessThanOrEquals => numeric_comparison_binop(&|l, r| l <= r),
