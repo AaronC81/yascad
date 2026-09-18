@@ -1,0 +1,6 @@
+translate([0, 0, -10]) {
+    let(x = 2) {
+        cube(x);
+        translate([5, 0, 0]) cube(x);
+    }
+}

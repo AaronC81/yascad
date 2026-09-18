@@ -383,11 +383,21 @@ impl Interpreter {
                     self.add_name(name, NameDefinition::Binding(value), &ctx, node.span.clone())?;
                 }
 
-                let mut results = self.interpret_body(&body, &ctx)?;
-                if results.is_empty() {
-                    Ok(Object::Null)
-                } else {
-                    Ok(results.remove(results.len() - 1))
+                // TODO: feels brittle... this is only a problem because functions need this.
+                // Otherwise we could just always `interpret_body_into_geometry.`
+                //
+                // Would it be better to have two separate nodes...?
+                match body.as_slice() {
+                    [] => Ok(Object::Null),
+
+                    // For function uses
+                    [single] => self.interpret(single, &ctx),
+
+                    // For geometry uses
+                    _ => {
+                        let (geom, disp) = self.interpret_body_into_geometry(&body, &ctx, node.span.clone())?;
+                        Ok(self.manifold_table.add_into_object(geom, disp))
+                    }
                 }
             }
 
