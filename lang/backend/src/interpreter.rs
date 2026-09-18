@@ -554,6 +554,22 @@ impl Interpreter {
                 let item = self.interpret(&node, ctx)?;
                 Ok(vec![item])
             },
+
+            VectorLiteralItemKind::ForComprehension { loop_variable, loop_source, body } => {
+                let loop_source = self.interpret(&loop_source, ctx)?.into_vector(node.span.clone())?;
+
+                let mut results = vec![];
+                for item in loop_source {
+                    let ctx = ctx.with_deeper_scope();
+                    self.add_name(&loop_variable, NameDefinition::Binding(item), &ctx, node.span.clone())?;
+
+                    let this_item_results = self.interpret_vector_item(body, &ctx)?;
+                    results.extend(this_item_results.into_iter());
+                }
+
+                Ok(results)
+            },
+
             VectorLiteralItemKind::EachComprehension { body } => {
                 let body = self.interpret_vector_item(&body, ctx)?;
                 let flattened_items = body.into_iter()
@@ -568,7 +584,6 @@ impl Interpreter {
                 Ok(flattened_items)
             }
 
-            VectorLiteralItemKind::ForComprehension { loop_variable, loop_source, body } => todo!(),
             VectorLiteralItemKind::IfComprehension { condition, body } => todo!(),
         }
     }

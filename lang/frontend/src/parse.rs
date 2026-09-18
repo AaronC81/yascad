@@ -324,24 +324,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwFor) {
             let Token { span: start_span, .. } = self.tokens.next().unwrap();
 
-            self.expect(TokenKind::LParen)?;
-            
-            // TODO: REALLY need to break this sequence out into a function
-            let Some(Token { kind, span: name_span }) = self.tokens.next()
-            else {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
-                return None
-            };
-            let TokenKind::Identifier(loop_variable) = &kind
-            else {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), name_span));
-                return None
-            };
-
-            self.expect(TokenKind::Equals)?;
-            let (loop_source, _) = self.parse_expression()?;
-            self.expect(TokenKind::RParen)?;
-
+            let (loop_variable, loop_source) = self.parse_for_loop_subject()?;
             let (body, terminator) = self.parse_statement_body()?;
             let body_spans = body
                 .iter()
@@ -961,6 +944,28 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         value
     }
 
+    fn parse_for_loop_subject(&mut self) -> Option<(String, Node)> {
+        self.expect(TokenKind::LParen)?;
+            
+        // TODO: REALLY need to break this sequence out into a function
+        let Some(Token { kind, span: name_span }) = self.tokens.next()
+        else {
+            self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+            return None
+        };
+        let TokenKind::Identifier(loop_variable) = &kind
+        else {
+            self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind), name_span));
+            return None
+        };
+
+        self.expect(TokenKind::Equals)?;
+        let (loop_source, _) = self.parse_expression()?;
+        self.expect(TokenKind::RParen)?;
+
+        Some((loop_variable.clone(), loop_source))
+    }
+
     // Assumes you have already consumed the start of the list (e.g. left paren)
     fn parse_bracketed_comma_separated_list<T>(&mut self, end: TokenKind, parse_fn: impl Fn(&mut Self) -> Option<T>) -> Option<(Vec<T>, InputSourceSpan)> {
         let start_span = self.tokens.peek()?.span.clone();
@@ -1100,8 +1105,23 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         //     `[if (...) for (...) ...]`
         //
         match self.tokens.peek() {
-            // TODO: for
             // TODO: if
+
+            Some(Token { kind: TokenKind::KwFor, .. }) => {
+                let Token { span, .. } = self.tokens.next()?;
+
+                let (loop_variable, loop_source) = self.parse_for_loop_subject()?;
+                let body = self.parse_vector_literal_item()?;
+                let span = span.union_with(&[body.span.clone()]);
+                Some(VectorLiteralItem::new(
+                    VectorLiteralItemKind::ForComprehension {
+                        loop_variable,
+                        loop_source: Box::new(loop_source),
+                        body: Box::new(body),
+                    },
+                    span,
+                ))
+            }
 
             Some(Token { kind: TokenKind::KwEach, .. }) => {
                 let Token { span, .. } = self.tokens.next()?;

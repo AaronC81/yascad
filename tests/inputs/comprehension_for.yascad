@@ -1,0 +1,6 @@
+v = [for (i = [0:3]) i * 5];
+
+for (x = v) {
+    translate([x, 0])
+    cube(1);
+}
