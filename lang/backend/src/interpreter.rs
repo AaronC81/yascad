@@ -381,6 +381,40 @@ impl Interpreter {
                 }
             },
 
+            NodeKind::IndexAccess { value, index } => {
+                let value = self.interpret(value, ctx)?;
+                let index = self.interpret(index, ctx)?.as_index(index.span.clone())?;
+                
+                match value {
+                    Object::String(str) => Ok(
+                        str
+                            .chars().nth(index)
+                            .map(|c| Object::String(c.to_string()))
+                            .unwrap_or(Object::Null)
+                    ),
+                    Object::Vector(vec) => Ok(
+                        vec
+                            .get(index).cloned()
+                            .unwrap_or(Object::Null)
+                    ),
+
+                    Object::Null
+                    | Object::Number(_)
+                    | Object::Boolean(_)
+                    | Object::Manifold(_)
+                    | Object::CrossSection(_)
+                    | Object::EmptyGeometry => {
+                        Err(RuntimeError::new(
+                            RuntimeErrorKind::IncorrectType {
+                                expected: "string or vector".to_owned(),
+                                actual: value.describe_type(),
+                            },
+                            node.span.clone()
+                        ))
+                    }
+                }
+            }
+
             NodeKind::BinaryOperation { left, right, op } => {
                 let left = self.interpret(left, ctx)?;
                 let right = self.interpret(right, ctx)?;

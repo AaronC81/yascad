@@ -54,6 +54,10 @@ pub enum NodeKind {
         value: Box<Node>,
         field: String,
     },
+    IndexAccess {
+        value: Box<Node>,
+        index: Box<Node>,
+    },
 
     BinaryOperation {
         left: Box<Node>,
@@ -592,7 +596,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         ))
                     } else {
                         Some((
-                            self.parse_any_field_access_suffixes(
+                            self.parse_any_access_suffixes(
                                 Node::new(NodeKind::Call {
                                     name: id,
                                     arguments,
@@ -604,7 +608,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 } else {
                     // Just a normal identifier usage
                     Some((
-                        self.parse_any_field_access_suffixes(
+                        self.parse_any_access_suffixes(
                             Node::new(NodeKind::Identifier(id), span)
                         ),
                         StatementTerminator::NeedsSemicolon,
@@ -688,7 +692,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             TokenKind::KwIt => {
                 Some((
-                    self.parse_any_field_access_suffixes(
+                    self.parse_any_access_suffixes(
                         Node::new(NodeKind::ItReference, span)
                     ),
                     StatementTerminator::NeedsSemicolon
@@ -847,22 +851,45 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         Some((arguments, span))
     }
 
-    /// If the next tokens are a field access, e.g. `.x.y`, wrap the given node in these accesses.
+    /// If the next tokens are a field access `.x.y` or an index access `[0]`, wrap the given node
+    /// in these accesses.
     /// Otherwise, return the node unchanged.
-    fn parse_any_field_access_suffixes(&mut self, mut value: Node) -> Node {
-        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Dot) {
-            let Token { span: dot_span, .. } = self.tokens.next().unwrap();
+    fn parse_any_access_suffixes(&mut self, mut value: Node) -> Node {
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Dot || token.kind == TokenKind::LBracket) {
+            let Token { kind, span: start_span } = self.tokens.next().unwrap();
 
-            let Some((field, name_span)) = self.expect_identifier()
-            else { break };
+            match kind {
+                TokenKind::Dot => {
+                    let Some((field, name_span)) = self.expect_identifier()
+                    else { break };
+        
+                    value = Node::new(
+                        NodeKind::FieldAccess {
+                            value: Box::new(value),
+                            field,
+                        },
+                        start_span.union_with(&[name_span]),
+                    )
+                }
 
-            value = Node::new(
-                NodeKind::FieldAccess {
-                    value: Box::new(value),
-                    field,
-                },
-                dot_span.union_with(&[name_span]),
-            )
+                TokenKind::LBracket => {
+                    let Some((index, _)) = self.parse_expression()
+                    else { break };
+
+                    self.expect(TokenKind::RBracket);
+
+                    let span = start_span.union_with(&[index.span.clone()]);
+                    value = Node::new(
+                        NodeKind::IndexAccess {
+                            value: Box::new(value),
+                            index: Box::new(index),
+                        },
+                        span,
+                    )
+                }
+
+                _ => unreachable!(),
+            }
         }
 
         value
