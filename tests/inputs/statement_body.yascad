@@ -1,0 +1,12 @@
+for (i = [0:4])
+    translate([i, 0])
+    square(0.5);
+
+module foo(round)
+    if (round)
+        circle(1)
+    else
+        square(1);
+
+translate([0, 3]) foo(true);
+translate([0, 5]) foo(false);

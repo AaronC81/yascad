@@ -225,30 +225,47 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     // If they return `None`, then they (or a subparser) already emitted an error.
 
     pub fn parse_statement(&mut self) -> Option<Node> {
+        let (node, terminator) = self.parse_statement_without_terminator()?;
+
+        match terminator {
+            StatementTerminator::NeedsSemicolon => {
+                self.expect(TokenKind::Semicolon)?;
+            },
+            StatementTerminator::Braced => {
+                if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Semicolon) {
+                    self.tokens.next();
+                }
+            },
+        };
+
+        Some(node)
+    }
+
+    pub fn parse_statement_without_terminator(&mut self) -> Option<(Node, StatementTerminator)> {
         // Try parse operator definition
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwOperator) {
-            let (name, parameters, body, span) = self.parse_block_definition()?;
-            return Some(Node::new(
+            let (name, parameters, body, span, terminator) = self.parse_block_definition()?;
+            return Some((Node::new(
                 NodeKind::OperatorDefinition {
                     name: name.to_owned(),
                     parameters,
                     body,
                 },
                 span,
-            ))
+            ), terminator))
         }
 
         // Try parse module definition
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwModule) {
-            let (name, parameters, body, span) = self.parse_block_definition()?;
-            return Some(Node::new(
+            let (name, parameters, body, span, terminator) = self.parse_block_definition()?;
+            return Some((Node::new(
                 NodeKind::ModuleDefinition {
                     name: name.to_owned(),
                     parameters,
                     body,
                 },
                 span,
-            ))
+            ), terminator))
         }
 
         // Try parse function definition
@@ -258,19 +275,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             let (name, parameters) = self.parse_definition_signature()?;
 
             self.expect(TokenKind::Equals)?;
-            let (body, _) = self.parse_expression()?;
-            let Token { span: end_span, .. } = self.expect(TokenKind::Semicolon)??;
+            let (body, terminator) = self.parse_expression()?;
 
-            let span = start_span.union_with(&[end_span]);
+            let span = start_span.union_with(&[body.span.clone()]);
 
-            return Some(Node::new(
+            return Some((Node::new(
                 NodeKind::FunctionDefinition {
                     name: name.to_owned(),
                     parameters,
                     body: Box::new(body),
                 },
                 span,
-            ))
+            ), terminator))
         }
 
         // Try parse `for` loop
@@ -295,21 +311,21 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             let (loop_source, _) = self.parse_expression()?;
             self.expect(TokenKind::RParen)?;
 
-            let body = self.parse_braced_statement_list()?;
+            let (body, terminator) = self.parse_statement_body()?;
             let body_spans = body
                 .iter()
                 .map(|item| item.span.clone())
                 .collect::<Vec<_>>();
 
             let span = start_span.union_with(&body_spans);
-            return Some(Node::new(
+            return Some((Node::new(
                 NodeKind::ForLoop {
                     loop_variable: loop_variable.to_owned(),
                     loop_source: Box::new(loop_source),
                     body,
                 },
                 span,
-            ))
+            ), terminator))
         }
 
         // Try parse `if` statement
@@ -333,19 +349,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }, binding_span);
             terminator = value_terminator;
         }
-
-        match terminator {
-            StatementTerminator::NeedsSemicolon => {
-                self.expect(TokenKind::Semicolon)?;
-            },
-            StatementTerminator::Braced => {
-                if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Semicolon) {
-                    self.tokens.next();
-                }
-            },
-        };
         
-        Some(expr)
+        Some((expr, terminator))
     }
 
     fn parse_expression(&mut self) -> Option<(Node, StatementTerminator)> {
@@ -571,7 +576,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                             StatementTerminator::Braced,
                         ))
                     } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
-                        let children = self.parse_braced_statement_list()?;
+                        let (children, terminator) = self.parse_statement_body()?;
                         Some((
                             Node::new(NodeKind::OperatorApplication {
                                 name: id,
@@ -579,7 +584,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                                 children,
                                 splatted_children: None,
                             }, call_span),
-                            StatementTerminator::Braced,
+                            terminator,
                         ))
                     } else if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Ellipsis) {
                         self.tokens.next();
@@ -780,13 +785,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     ///   - Parameters
     ///   - Body
     ///   - Span of entire definition
-    fn parse_block_definition(&mut self) -> Option<(String, Parameters, Vec<Node>, InputSourceSpan)> {
+    ///   - Statement terminator
+    fn parse_block_definition(&mut self) -> Option<(String, Parameters, Vec<Node>, InputSourceSpan, StatementTerminator)> {
         let Token { span: start_span, .. } = self.tokens.next().unwrap();
 
         let (name, parameters) = self.parse_definition_signature()?;
 
         // Parse body
-        let body = self.parse_braced_statement_list()?;
+        let (body, terminator) = self.parse_statement_body()?;
         let body_spans = body
             .iter()
             .map(|item| item.span.clone())
@@ -794,7 +800,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
         let span = start_span.union_with(&body_spans);
 
-        Some((name.to_owned(), parameters, body, span))
+        Some((name.to_owned(), parameters, body, span, terminator))
     }
 
     /// Parse the name and parameters of a definition.
@@ -968,45 +974,49 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             p.parse_expression().map(|(n, _)| n))
     }
 
-    fn parse_braced_statement_list(&mut self) -> Option<Vec<Node>> {
-        self.expect(TokenKind::LBrace)?;
+    fn parse_statement_body(&mut self) -> Option<(Vec<Node>, StatementTerminator)> {
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::LBrace) {
+            self.tokens.next();
 
-        let mut stmts = vec![];
-        loop {
-            if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RBrace) {
-                self.tokens.next().unwrap();
-                break
-            } else if self.tokens.peek().is_none() {
-                self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
-                break
-            } else if let Some(stmt) = self.parse_statement() {
-                stmts.push(stmt);
+            let mut stmts = vec![];
+            loop {
+                if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::RBrace) {
+                    self.tokens.next().unwrap();
+                    break
+                } else if self.tokens.peek().is_none() {
+                    self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
+                    break
+                } else if let Some(stmt) = self.parse_statement() {
+                    stmts.push(stmt);
+                }
             }
-        }
 
-        Some(stmts)
+            Some((stmts, StatementTerminator::Braced))
+        } else {
+            let (node, terminator) = self.parse_statement_without_terminator()?;
+            Some((vec![node], terminator))
+        }
     }
 
-    fn parse_if_statement(&mut self) -> Option<Node> {
+    fn parse_if_statement(&mut self) -> Option<(Node, StatementTerminator)> {
         let Token { span: start_span, .. } = self.expect(TokenKind::KwIf)??;
         self.expect(TokenKind::LParen)??;
 
         let (condition, _) = self.parse_expression()?;
         let Token { span: body_end_span, .. } = self.expect(TokenKind::RParen)??;
 
-        let true_body = self.parse_braced_statement_list()?;
+        let (true_body, true_terminator) = self.parse_statement_body()?;
         let false_body =
             if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwElse) {
                 self.tokens.next().unwrap();
                 
                 match self.tokens.peek() {
-                    Some(Token { kind: TokenKind::KwIf, .. }) => Some(vec![self.parse_if_statement()?]),
-                    Some(Token { kind: TokenKind::LBrace, .. }) => Some(self.parse_braced_statement_list()?),
-                    
-                    Some(Token { kind, span }) => {
-                        self.errors.push(ParseError::new(ParseErrorKind::UnexpectedToken(kind.clone()), span.clone()));
-                        None
+                    Some(Token { kind: TokenKind::KwIf, .. }) => {
+                        let (node, terminator) = self.parse_if_statement()?;
+                        Some((vec![node], terminator))
                     }
+                    Some(_) => Some(self.parse_statement_body()?),
+                    
                     None => {
                         self.errors.push(ParseError::new(ParseErrorKind::UnexpectedEnd, self.source.eof_span()));
                         None
@@ -1016,15 +1026,19 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 None
             };
 
+        let terminator = match false_body {
+            Some((_, term)) => term,
+            None => true_terminator,
+        };
         let span = start_span.union_with(&[body_end_span]);        
-        return Some(Node::new(
+        return Some((Node::new(
             NodeKind::IfConditional {
                 condition: Box::new(condition),
                 true_body,
-                false_body,
+                false_body: false_body.map(|(body, _)| body),
             },
             span,
-        ))
+        ), terminator))
     }
 
     /// Consume a token which is expected to be of a certain kind, generating an error if it's not.
