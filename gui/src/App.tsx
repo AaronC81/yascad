@@ -109,7 +109,7 @@ function App() {
             <RenderCanvas stl={currentStl ?? ""} />
           </div>
           
-          <div id="output-messages" className={"font-mono text-left whitespace-break-spaces " + (stlError ? "flex-1" : "hidden")}>
+          <div id="output-messages" className={"font-mono text-left whitespace-break-spaces overflow-y-scroll " + (stlError ? "flex-1" : "hidden")}>
             {stlError || "Build messages will be shown here."}
           </div>
         </Panel>
