@@ -115,6 +115,7 @@ pub enum BinaryOperator {
     Multiply,
     Divide,
     Modulo,
+    Power,
 
     BooleanAnd,
     BooleanOr,
@@ -474,7 +475,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_mul_div_mod_expression(&mut self) -> Option<(Node, StatementTerminator)> {
-        let (mut left, mut terminator) = self.parse_bottom_expression()?;
+        let (mut left, mut terminator) = self.parse_power_expression()?;
 
         while self.tokens.peek().is_some_and(|token|
             token.kind == TokenKind::Star
@@ -489,13 +490,35 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 _ => unreachable!(),
             };
 
-            let (right, right_terminator) = self.parse_bottom_expression()?;
+            let (right, right_terminator) = self.parse_power_expression()?;
             let span = left.span.union_with(slice::from_ref(&right.span));
             left = Node::new(
                 NodeKind::BinaryOperation {
                     left: Box::new(left),
                     right: Box::new(right),
                     op,
+                },
+                span,
+            );
+            terminator = right_terminator;
+        }
+
+        Some((left, terminator))
+    }
+
+    fn parse_power_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+        let (mut left, mut terminator) = self.parse_bottom_expression()?;
+
+        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Caret) {
+            self.tokens.next().unwrap();
+
+            let (right, right_terminator) = self.parse_bottom_expression()?;
+            let span = left.span.union_with(slice::from_ref(&right.span));
+            left = Node::new(
+                NodeKind::BinaryOperation {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    op: BinaryOperator::Power,
                 },
                 span,
             );
