@@ -1,0 +1,6 @@
+v = [for (i = [0:10]) if (i % 2 == 0) i];
+
+for (x = v) {
+    translate([x, 0])
+    cube(1);
+}

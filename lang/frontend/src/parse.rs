@@ -1105,7 +1105,23 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         //     `[if (...) for (...) ...]`
         //
         match self.tokens.peek() {
-            // TODO: if
+            Some(Token { kind: TokenKind::KwIf, .. }) => {
+                let Token { span, .. } = self.tokens.next()?;
+
+                self.expect(TokenKind::LParen)?;
+                let (condition, _) = self.parse_expression()?;
+                self.expect(TokenKind::RParen)?;
+
+                let body = self.parse_vector_literal_item()?;
+                let span = span.union_with(&[body.span.clone()]);
+                Some(VectorLiteralItem::new(
+                    VectorLiteralItemKind::IfComprehension {
+                        condition: Box::new(condition),
+                        body: Box::new(body),
+                    },
+                    span,
+                ))
+            },
 
             Some(Token { kind: TokenKind::KwFor, .. }) => {
                 let Token { span, .. } = self.tokens.next()?;

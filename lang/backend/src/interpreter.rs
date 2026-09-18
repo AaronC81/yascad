@@ -555,6 +555,16 @@ impl Interpreter {
                 Ok(vec![item])
             },
 
+            VectorLiteralItemKind::IfComprehension { condition, body } => {
+                let condition = self.interpret(&condition, ctx)?.as_boolean(node.span.clone())?;
+
+                if condition {
+                    self.interpret_vector_item(body, ctx)
+                } else {
+                    Ok(vec![])
+                }
+            },
+
             VectorLiteralItemKind::ForComprehension { loop_variable, loop_source, body } => {
                 let loop_source = self.interpret(&loop_source, ctx)?.into_vector(node.span.clone())?;
 
@@ -583,8 +593,6 @@ impl Interpreter {
 
                 Ok(flattened_items)
             }
-
-            VectorLiteralItemKind::IfComprehension { condition, body } => todo!(),
         }
     }
 
