@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use yascad_frontend::InputSourceSpan;
 
-use crate::{EvaluatedParameters, Interpreter, Object, RuntimeError};
+use crate::{EvaluatedParameters, Interpreter, Object, RuntimeError, RuntimeErrorKind};
 
 /// Defines the parameters and behaviour of a built-in module.
 /// 
@@ -42,12 +42,83 @@ fn len_definition() -> FunctionDefinition {
     }
 }
 
+fn extract_vector_or_numeric_from_variadic(values: &[Object], span: InputSourceSpan) -> Result<Vec<f64>, RuntimeError> {
+    match values.first() {
+        Some(Object::Vector(vec)) => {
+            if values.len() > 1 {
+                return Err(RuntimeError::new(
+                    RuntimeErrorKind::IncorrectArity { expected: 1..=1, actual: values.len() },
+                    span,
+                ));
+            }
+
+            vec.into_iter()
+                .map(|i| i.as_number(span.clone()))
+                .collect::<Result<Vec<_>, _>>()
+        },
+
+        Some(Object::Number(_)) => {
+            values.iter()
+                .map(|i| i.as_number(span.clone()))
+                .collect::<Result<Vec<_>, _>>()
+        }
+
+        Some(v) => {
+            return Err(RuntimeError::new(
+                RuntimeErrorKind::IncorrectType {
+                    expected: "vector or numbers".to_owned(),
+                    actual: v.describe_type(),
+                },
+                span,
+            ))
+        }
+
+        None => {
+            return Ok(vec![])
+        }
+    }
+}
+
+fn max_definition() -> FunctionDefinition {
+    FunctionDefinition {
+        parameters: EvaluatedParameters::variadic("values".to_owned()),
+        action: &|_, arguments, span| {
+            let values = arguments["values"].as_vector(span.clone())?;
+            let numbers = extract_vector_or_numeric_from_variadic(values, span)?;
+
+            Ok(
+                numbers.into_iter().reduce(f64::max)
+                    .map(Object::Number)
+                    .unwrap_or(Object::Null)
+            )
+        }
+    }
+}
+
+fn min_definition() -> FunctionDefinition {
+    FunctionDefinition {
+        parameters: EvaluatedParameters::variadic("values".to_owned()),
+        action: &|_, arguments, span| {
+            let values = arguments["values"].as_vector(span.clone())?;
+            let numbers = extract_vector_or_numeric_from_variadic(values, span)?;
+
+            Ok(
+                numbers.into_iter().reduce(f64::min)
+                    .map(Object::Number)
+                    .unwrap_or(Object::Null)
+            )
+        }
+    }
+}
+
 /// Get the implementation for a specific built-in function.
 /// 
 /// Returns [`None`] if no such operator exists.
 pub fn get_builtin_function(name: &str) -> Option<FunctionDefinition> {
     match name {
         "len" => Some(len_definition()),
+        "max" => Some(max_definition()),
+        "min" => Some(min_definition()),
 
         _ => None,
     }

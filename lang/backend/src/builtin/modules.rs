@@ -41,6 +41,7 @@ fn cylinder_definition() -> ModuleDefinition {
             required: vec!["h".to_owned()],
             optional: vec![("r".to_owned(), Object::Null)],
             optional_named_only: vec![("d".to_owned(), Object::Null)],
+            variadic: None,
         },
         action: &|interpreter, arguments, _, span| {
             // TODO: needs to support cone forms
@@ -58,6 +59,7 @@ fn sphere_definition() -> ModuleDefinition {
             required: vec![],
             optional: vec![("r".to_owned(), Object::Null)],
             optional_named_only: vec![("d".to_owned(), Object::Null)],
+            variadic: None,
         },
         action: &|interpreter, arguments, _, span| {
             let radius = radius_argument(&arguments, span)?;
@@ -92,6 +94,7 @@ fn circle_definition() -> ModuleDefinition {
             required: vec![],
             optional: vec![("r".to_owned(), Object::Null)],
             optional_named_only: vec![("d".to_owned(), Object::Null)],
+            variadic: None,
         },
         action: &|interpreter, arguments: HashMap<String, Object>, _, span| {
             let radius = radius_argument(&arguments, span)?;

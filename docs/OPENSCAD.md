@@ -122,8 +122,8 @@ The OpenSCAD feature set on this table comes from the [cheat sheet](https://open
 | `sqrt` | ❌ |
 | `exp` | ❌ |
 | `rands` | ❌ |
-| `min` | ❌ |
-| `max` | ❌ |
+| `min` | ✅ |
+| `max` | ✅ |
 | `norm` | ❌ |
 | `cross` | ❌ |
 | `is_undef` | ❌ |

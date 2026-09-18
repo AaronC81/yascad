@@ -613,6 +613,7 @@ impl Interpreter {
                 )
                 .collect::<Result<_, _>>()?,
             optional_named_only: vec![],
+            variadic: None,
         })
     }
 
@@ -777,6 +778,17 @@ impl Interpreter {
             if count_args_with_name > 1 {
                 return Err(RuntimeError::new(RuntimeErrorKind::DuplicateNamedArgument(name.to_owned()), span));
             }
+        }
+
+        if let Some(variadic_name) = parameters.variadic {
+            // Currently cannot accept any named parameters
+            if let Some((arg, _)) = arguments.named.first() {
+                return Err(RuntimeError::new(RuntimeErrorKind::UndefinedNamedArgument(arg.clone()), span))
+            }
+
+            let mut map = HashMap::new();
+            map.insert(variadic_name, Object::Vector(arguments.positional));
+            return Ok(map)
         }
 
         // Validate that there aren't more positional arguments than we can possibly ever accept
@@ -974,6 +986,8 @@ pub struct EvaluatedParameters {
     /// This is an internal language feature to support `r`/`d` parameters, and isn't usable from
     /// language source.
     pub optional_named_only: Vec<(String, Object)>,
+
+    pub variadic: Option<String>,
 }
 
 impl EvaluatedParameters {
@@ -984,6 +998,9 @@ impl EvaluatedParameters {
         
             // This is so rarely used that we don't expect it in the constructor
             optional_named_only: vec![],
+
+            // If variadic, all other argument types are ignored (currently)
+            variadic: None,
         }
     }
 
@@ -993,6 +1010,14 @@ impl EvaluatedParameters {
 
     pub fn required(required: Vec<String>) -> Self {
         Self::new(required, vec![])
+    }
+
+    pub fn variadic(name: String) -> Self {
+        Self {
+            optional_named_only: vec![],
+            variadic: Some(name),
+            ..Self::empty()
+        }
     }
 
     /// The total number of required and optional arguments.
