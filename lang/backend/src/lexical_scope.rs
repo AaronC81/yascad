@@ -54,14 +54,7 @@ impl LexicalScope {
     }
 
     /// Add a new value binding to this scope.
-    /// 
-    /// Panics if a binding with this name already exists. It's the caller's responsibility to check
-    /// for conflicts, as it may have names beyond the lexical scope which we don't know about.
     pub fn add_binding(&mut self, name: String, value: Object) {
-        if self.get_binding(&name).is_some() {
-            panic!("binding {name} already exists");
-        }
-
         self.bindings.insert(name, value);
     }
 

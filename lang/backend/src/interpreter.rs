@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::{HashMap, HashSet}, iter::zip, ops::RangeI
 use manifold_csg::Manifold;
 use yascad_frontend::{Arguments, BinaryOperator, InputSourceSpan, Node, NodeKind, Parameters, VectorLiteralItem, VectorLiteralItemKind};
 
-use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, FunctionDefinition, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::{LexicalScope, UserDefinition}, object::Object};
+use crate::{RuntimeError, RuntimeErrorKind, builtin::{self, FunctionDefinition, ModuleDefinition, OperatorDefinition, children_definition, get_children}, geometry_table::{GeometryDisposition, GeometryTable, GeometryTableEntry, GeometryTableIndex}, lexical_scope::{self, LexicalScope, UserDefinition}, object::Object};
 
 /// The context of whatever node is currently executing, to encapsulate surrounding state.
 #[derive(Clone, Debug)]
@@ -16,10 +16,6 @@ pub struct ExecutionContext<'c> {
 
     /// The current lexical scope.
     lexical_scope: Rc<RefCell<LexicalScope>>,
-
-    /// The current map of arguments available within a module/operator body.
-    /// This is distinct from scope so we don't look up to parent frames.
-    arguments: HashMap<String, Object>,
 }
 
 impl<'c> ExecutionContext<'c> {
@@ -28,7 +24,6 @@ impl<'c> ExecutionContext<'c> {
             it_manifold: ItManifold::None,
             operator_children: None,
             lexical_scope: Rc::new(RefCell::new(LexicalScope::new_root())),
-            arguments: HashMap::new(),
         }
     }
 
@@ -51,19 +46,23 @@ impl<'c> ExecutionContext<'c> {
     }
 
     pub fn with_deeper_scope(&'_ self) -> ExecutionContext<'_> {
-        self.with_deeper_scope_than(self.lexical_scope.clone())
-    }
-
-    pub fn with_deeper_scope_than(&'_ self, parent: Rc<RefCell<LexicalScope>>) -> ExecutionContext<'_> {
         ExecutionContext {
-            lexical_scope: Rc::new(RefCell::new(LexicalScope::new(parent))),
+            lexical_scope: Rc::new(RefCell::new(LexicalScope::new(self.lexical_scope.clone()))),
             ..self.clone()
         }
     }
 
-    pub fn with_arguments(&'_ self, arguments: HashMap<String, Object>) -> ExecutionContext<'_> {
+    pub fn with_callee_scope(&'_ self, callee: Rc<RefCell<LexicalScope>>, arguments: HashMap<String, Object>) -> ExecutionContext<'_> {
+        let mut lexical_scope = LexicalScope::new(callee);
+
+        // This doesn't use `Interpreter.add_name` - I think it's (probably?) OK for local arguments
+        // to shadow other bindings.
+        for (name, value) in arguments {
+            lexical_scope.add_binding(name, value);
+        }
+
         ExecutionContext {
-            arguments,
+            lexical_scope: Rc::new(RefCell::new(lexical_scope)),
             ..self.clone()
         }
     }
@@ -138,7 +137,7 @@ impl Interpreter {
                 }
 
                 match self.get_binding_name(id, ctx, node.span.clone())? {
-                    NameDefinition::Argument(obj) | NameDefinition::Binding(obj) => Ok(obj),
+                    NameDefinition::Binding(obj) => Ok(obj),
                     
                     def => Err(RuntimeError::new(
                         RuntimeErrorKind::InvalidIdentifier {
@@ -356,7 +355,7 @@ impl Interpreter {
                         let body = body.first().unwrap();
 
                         let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
-                        self.interpret(body, &ctx.with_deeper_scope_than(scope).with_arguments(arguments))
+                        self.interpret(body, &ctx.with_callee_scope(scope, arguments))
                     }
 
                     def => Err(RuntimeError::new(
@@ -679,8 +678,7 @@ impl Interpreter {
             &ctx
                 .with_it_manifold(ItManifold::None)
                 .with_operator_children(operator_children)
-                .with_deeper_scope_than(scope)
-                .with_arguments(arguments),
+                .with_callee_scope(scope, arguments),
             span,
         )
     }
@@ -706,16 +704,12 @@ impl Interpreter {
             .collect()
     }
 
-    /// Look up a name for a binding or argument.
+    /// Look up a name for a binding.
     fn get_binding_name(&self, name: &str, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<NameDefinition, RuntimeError> {
         if let Some(object) = ctx.lexical_scope.borrow().get_binding(name) {
             return Ok(NameDefinition::Binding(object))
         }
-
-        if let Some(object) = ctx.arguments.get(name) {
-            return Ok(NameDefinition::Argument(object.clone()));
-        }
-
+        
         Err(RuntimeError::new(
             RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
             span,
@@ -782,8 +776,7 @@ impl Interpreter {
                 ctx.lexical_scope.borrow_mut().add_function(name.to_owned(), def);
             }
 
-            NameDefinition::Argument(_)
-            | NameDefinition::BuiltinModule(_)
+            NameDefinition::BuiltinModule(_)
             | NameDefinition::BuiltinOperator(_)
             | NameDefinition::BuiltinFunction(_) => panic!("cannot add new definition of this type"),
         }
@@ -982,7 +975,6 @@ pub enum ItManifold<'a> {
 #[derive(Clone)]
 pub enum NameDefinition {
     Binding(Object),
-    Argument(Object),
 
     BuiltinModule(ModuleDefinition),
     UserDefinedModule(UserDefinition),
@@ -998,7 +990,6 @@ impl NameDefinition {
     pub fn describe_kind(&self) -> String {
         match self {
             NameDefinition::Binding(_) => "binding",
-            NameDefinition::Argument(_) => "parameter",
             NameDefinition::BuiltinModule(_) => "built-in module",
             NameDefinition::UserDefinedModule { .. } => "user-defined module",
             NameDefinition::BuiltinOperator(_) => "built-in operator",
