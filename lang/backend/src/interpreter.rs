@@ -376,6 +376,22 @@ impl Interpreter {
                 Ok(value)
             },
 
+            NodeKind::LetBlock { bindings, body } => {
+                let ctx = ctx.with_deeper_scope();
+
+                for (name, node) in bindings {
+                    let value = self.interpret(node, &ctx)?;
+                    self.add_name(name, NameDefinition::Binding(value), &ctx, node.span.clone())?;
+                }
+
+                let mut results = self.interpret_body(&body, &ctx)?;
+                if results.is_empty() {
+                    Ok(Object::Null)
+                } else {
+                    Ok(results.remove(results.len() - 1))
+                }
+            }
+
             NodeKind::FieldAccess { value, field } => {
                 let value = self.interpret(value, ctx)?;
 

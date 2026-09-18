@@ -50,6 +50,10 @@ pub enum NodeKind {
         name: String,
         value: Box<Node>,
     },
+    LetBlock {
+        bindings: Vec<(String, Box<Node>)>,
+        body: Vec<Node>,
+    },
     FieldAccess {
         value: Box<Node>,
         field: String,
@@ -203,6 +207,7 @@ pub enum ParseErrorKind {
     NamedSplat,
     MultipleSplat,
     ComprehensionInRange,
+    MissingNameInLetBlock,
 }
 
 impl Display for ParseErrorKind {
@@ -216,6 +221,7 @@ impl Display for ParseErrorKind {
             ParseErrorKind::NamedSplat => write!(f, "splat arguments cannot be named"),
             ParseErrorKind::MultipleSplat => write!(f, "only one splat argument can be specified"),
             ParseErrorKind::ComprehensionInRange => write!(f, "comprehensions cannot appear in ranges"),
+            ParseErrorKind::MissingNameInLetBlock => write!(f, "missing binding name in `let` block"),
         }
     }
 }
@@ -345,6 +351,37 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         // Try parse `if` statement
         if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwIf) {
             return self.parse_if_statement()
+        }
+
+        // Try parse `let` block
+        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwLet) {
+            let Token { span: start_span, .. } = self.tokens.next().unwrap();
+
+            let (args, args_span) = self.parse_argument_list()?;
+            if !args.positional.is_empty() {
+                self.errors.push(ParseError::new(
+                    ParseErrorKind::MissingNameInLetBlock,
+                    args_span,
+                ));
+            }
+            let bindings = args.named.into_iter()
+                .map(|(name, node)| (name, Box::new(node)))
+                .collect();
+
+            let (body, terminator) = self.parse_statement_body()?;
+            let body_spans = body
+                .iter()
+                .map(|item| item.span.clone())
+                .collect::<Vec<_>>();
+
+            let span = start_span.union_with(&body_spans);
+            return Some((Node::new(
+                NodeKind::LetBlock {
+                    bindings,
+                    body,
+                },
+                span,
+            ), terminator))
         }
 
         let (mut expr, mut terminator) = self.parse_expression()?;

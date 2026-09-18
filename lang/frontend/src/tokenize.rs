@@ -34,6 +34,7 @@ pub enum TokenKind {
     KwFalse,
     KwNull,
     KwUndef,
+    KwLet,
 
     LParen,
     RParen,
@@ -97,6 +98,7 @@ impl Display for TokenKind {
             TokenKind::KwFalse => write!(f, "keyword \"false\""),
             TokenKind::KwNull => write!(f, "keyword \"null\""),
             TokenKind::KwUndef => write!(f, "keyword \"undef\""),
+            TokenKind::KwLet => write!(f, "keyword \"let\""),
 
             TokenKind::Comma => write!(f, "comma"),
             TokenKind::Semicolon => write!(f, "semicolon"),
@@ -433,6 +435,7 @@ fn lookup_keyword(name: &str) -> Option<TokenKind> {
         "false" => Some(TokenKind::KwFalse),
         "null" => Some(TokenKind::KwNull),
         "undef" => Some(TokenKind::KwUndef),
+        "let" => Some(TokenKind::KwLet),
         _ => None,
     }
 }
