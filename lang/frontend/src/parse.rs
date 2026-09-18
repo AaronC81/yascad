@@ -555,6 +555,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                             }, call_span),
                             operator,
                         ))
+                    } else if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::KwFor || token.kind == TokenKind::KwIf) {
+                        let child = self.parse_statement()?;
+                        Some((
+                            Node::new(NodeKind::OperatorApplication {
+                                name: id,
+                                arguments,
+                                children: vec![child],
+                                splatted_children: None,
+                            }, call_span),
+                            StatementTerminator::Braced,
+                        ))
                     } else if self.tokens.peek().is_some_and(|token| matches!(token.kind, TokenKind::LBrace)) {
                         let children = self.parse_braced_statement_list()?;
                         Some((
