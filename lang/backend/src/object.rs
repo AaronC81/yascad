@@ -141,13 +141,19 @@ impl Object {
         }
     }
 
-    pub fn as_boolean(&self, span: InputSourceSpan) -> Result<bool, RuntimeError> {
+    pub fn as_boolean(&self) -> bool {
+        // Unlike other types, anything can be a boolean!
         match self {
-            Object::Boolean(bool) => Ok(*bool),
-            _ => Err(RuntimeError::new(
-                RuntimeErrorKind::IncorrectType { expected: "boolean".to_owned(), actual: self.describe_type() },
-                span.clone())
-            ),
+            Object::Boolean(bool) => *bool,
+
+            Object::Null => false,
+            Object::Number(num) => *num != 0.0,
+            Object::String(str) => !str.is_empty(),
+            Object::Vector(vec) => vec.is_empty(),
+
+            Object::Manifold(_) => true,
+            Object::CrossSection(_) => true,
+            Object::EmptyGeometry => true,
         }
     }
 

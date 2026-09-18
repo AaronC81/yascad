@@ -442,20 +442,20 @@ impl Interpreter {
             NodeKind::BinaryOperation { left, right, op } => {
                 // Boolean ops are different because they short-circuit
                 if *op == BinaryOperator::BooleanAnd {
-                    let left = self.interpret(left, ctx)?.as_boolean(left.span.clone())?;
+                    let left = self.interpret(left, ctx)?.as_boolean();
                     if left {
-                        let right = self.interpret(right, ctx)?.as_boolean(right.span.clone())?;
+                        let right = self.interpret(right, ctx)?.as_boolean();
                         return Ok(Object::Boolean(left && right));
                     } else {
                         return Ok(Object::Boolean(false));
                     }
                 }
                 if *op == BinaryOperator::BooleanOr {
-                    let left = self.interpret(left, ctx)?.as_boolean(left.span.clone())?;
+                    let left = self.interpret(left, ctx)?.as_boolean();
                     if left {
                         return Ok(Object::Boolean(true));
                     } else {
-                        let right = self.interpret(right, ctx)?.as_boolean(right.span.clone())?;
+                        let right = self.interpret(right, ctx)?.as_boolean();
                         return Ok(Object::Boolean(left || right));
                     }
                 }
@@ -497,7 +497,7 @@ impl Interpreter {
             },
 
             NodeKind::UnaryNot(value) => {
-                let value = self.interpret(value, ctx)?.as_boolean(node.span.clone())?;
+                let value = self.interpret(value, ctx)?.as_boolean();
                 Ok(Object::Boolean(!value))
             },
 
@@ -548,7 +548,7 @@ impl Interpreter {
             },
 
             NodeKind::IfConditional { condition, true_body, false_body } => {
-                let condition = self.interpret(condition, ctx)?.as_boolean(node.span.clone())?;
+                let condition = self.interpret(condition, ctx)?.as_boolean();
 
                 let ctx = ctx.with_deeper_scope();
                 if condition {
@@ -563,7 +563,7 @@ impl Interpreter {
             },
 
             NodeKind::TernaryConditional { condition, true_case, false_case } => {
-                let condition = self.interpret(condition, ctx)?.as_boolean(node.span.clone())?;
+                let condition = self.interpret(condition, ctx)?.as_boolean();
 
                 let true_value = self.interpret(true_case, &ctx)?;
                 let false_value = self.interpret(false_case, &ctx)?;
@@ -588,7 +588,7 @@ impl Interpreter {
             },
 
             VectorLiteralItemKind::IfComprehension { condition, body } => {
-                let condition = self.interpret(&condition, ctx)?.as_boolean(node.span.clone())?;
+                let condition = self.interpret(&condition, ctx)?.as_boolean();
 
                 if condition {
                     self.interpret_vector_item(body, ctx)
