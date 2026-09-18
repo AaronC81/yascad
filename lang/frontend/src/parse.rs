@@ -114,6 +114,7 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
 
     BooleanAnd,
     BooleanOr,
@@ -446,7 +447,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_add_sub_expression(&mut self) -> Option<(Node, StatementTerminator)> {
-        let (mut left, mut terminator) = self.parse_mul_div_expression()?;
+        let (mut left, mut terminator) = self.parse_mul_div_mod_expression()?;
 
         while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Plus || token.kind == TokenKind::Minus) {
             let Token { kind, .. } = self.tokens.next().unwrap();
@@ -456,7 +457,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 _ => unreachable!(),
             };
 
-            let (right, right_terminator) = self.parse_mul_div_expression()?;
+            let (right, right_terminator) = self.parse_mul_div_mod_expression()?;
             let span = left.span.union_with(slice::from_ref(&right.span));
             left = Node::new(
                 NodeKind::BinaryOperation {
@@ -472,14 +473,19 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         Some((left, terminator))
     }
 
-    fn parse_mul_div_expression(&mut self) -> Option<(Node, StatementTerminator)> {
+    fn parse_mul_div_mod_expression(&mut self) -> Option<(Node, StatementTerminator)> {
         let (mut left, mut terminator) = self.parse_bottom_expression()?;
 
-        while self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Star || token.kind == TokenKind::ForwardSlash) {
+        while self.tokens.peek().is_some_and(|token|
+            token.kind == TokenKind::Star
+            || token.kind == TokenKind::ForwardSlash
+            || token.kind == TokenKind::Percent
+        ) {
             let Token { kind, .. } = self.tokens.next().unwrap();
             let op = match kind {
                 TokenKind::Star => BinaryOperator::Multiply,
                 TokenKind::ForwardSlash => BinaryOperator::Divide,
+                TokenKind::Percent => BinaryOperator::Modulo,
                 _ => unreachable!(),
             };
 

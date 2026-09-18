@@ -397,6 +397,7 @@ impl Interpreter {
                     BinaryOperator::Subtract => self.apply_numeric_binop(left, right, &|l, r| l - r, &node.span),
                     BinaryOperator::Multiply => self.apply_numeric_binop(left, right, &|l, r| l * r, &node.span),
                     BinaryOperator::Divide => self.apply_numeric_binop(left, right, &|l, r| l / r, &node.span),
+                    BinaryOperator::Modulo => self.apply_numeric_binop(left, right, &|l, r| l % r, &node.span),
 
                     BinaryOperator::Equals => Ok(Object::Boolean(left == right)),
 

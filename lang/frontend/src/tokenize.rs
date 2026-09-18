@@ -58,6 +58,7 @@ pub enum TokenKind {
     Minus,
     ForwardSlash,
     Star,
+    Percent,
 
     Equals,
     DoubleEquals,
@@ -108,6 +109,7 @@ impl Display for TokenKind {
             TokenKind::Minus => write!(f, "minus"),
             TokenKind::ForwardSlash => write!(f, "forward slash"),
             TokenKind::Star => write!(f, "star"),
+            TokenKind::Percent => write!(f, "percent"),
 
             TokenKind::Equals => write!(f, "equals"),
             TokenKind::DoubleEquals => write!(f, "double-equals"),
@@ -348,6 +350,9 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
             }
             '*' => {
                 tokens.push(Token::new(TokenKind::Star, source.span(start_index, 1)))
+            }
+            '%' => {
+                tokens.push(Token::new(TokenKind::Percent, source.span(start_index, 1)))
             }
 
             '=' => {
