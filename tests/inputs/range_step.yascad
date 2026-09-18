@@ -1,0 +1,4 @@
+for (i = [0 : 0.5 : 2]) {
+    translate([i, 0])
+    square(0.25);
+}

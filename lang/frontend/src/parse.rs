@@ -27,7 +27,7 @@ pub enum NodeKind {
     VectorRangeLiteral {
         start: Box<Node>,
         end: Box<Node>,
-        // TODO: step
+        step: Option<Box<Node>>,
     },
     ItReference,
 
@@ -666,15 +666,35 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     Some(Token { kind: TokenKind::Colon, .. }) => {
                         self.tokens.next().unwrap();
 
-                        let (end_item, _) = self.parse_expression()?;
-                        self.expect(TokenKind::RBracket)?;
+                        let (second_item, _) = self.parse_expression()?;
 
-                        let vector_span = span.union_with(slice::from_ref(&end_item.span));
-                        Some((
-                            Node::new(NodeKind::VectorRangeLiteral {
+                        let third_item;
+                        if self.tokens.peek().is_some_and(|token| token.kind == TokenKind::Colon) {
+                            self.tokens.next();
+                            let (ti, _) = self.parse_expression()?;
+                            third_item = Some(ti);
+                        } else {
+                            third_item = None;
+                        }
+
+                        let Token { span: end_span, .. } = self.expect(TokenKind::RBracket)??;
+
+                        let vector_literal = match third_item {
+                            Some(third_item) => NodeKind::VectorRangeLiteral {
                                 start: Box::new(first_item),
-                                end: Box::new(end_item),
-                            }, vector_span),
+                                end: Box::new(third_item),
+                                step: Some(Box::new(second_item)),
+                            },
+                            None => NodeKind::VectorRangeLiteral {
+                                start: Box::new(first_item),
+                                end: Box::new(second_item),
+                                step: None,
+                            },
+                        };
+
+                        let vector_span = span.union_with(slice::from_ref(&end_span));
+                        Some((
+                            Node::new(vector_literal, vector_span),
                             StatementTerminator::NeedsSemicolon
                         ))
                     }

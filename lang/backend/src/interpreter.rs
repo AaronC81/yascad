@@ -174,9 +174,14 @@ impl Interpreter {
                 ))
             },
 
-            NodeKind::VectorRangeLiteral { start, end } => {
+            NodeKind::VectorRangeLiteral { start, end, step } => {
                 let start = self.interpret(start, ctx)?.as_number(node.span.clone())?;
                 let end = self.interpret(end, ctx)?.as_number(node.span.clone())?;
+
+                let step = match step {
+                    Some(step) => self.interpret(step, ctx)?.as_number(node.span.clone())?,
+                    None => 1.0,
+                };
 
                 if end < start {
                     return Err(RuntimeError::new(
@@ -186,10 +191,10 @@ impl Interpreter {
                 }
 
                 let mut current = start;
-                let mut items = vec![Object::Number(current)];
-                while current < end {
-                    current += 1.0;
+                let mut items = vec![];
+                while current <= end {
                     items.push(Object::Number(current));
+                    current += step;
                 }
 
                 Ok(Object::Vector(items))
