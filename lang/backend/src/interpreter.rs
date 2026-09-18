@@ -424,6 +424,26 @@ impl Interpreter {
             }
 
             NodeKind::BinaryOperation { left, right, op } => {
+                // Boolean ops are different because they short-circuit
+                if *op == BinaryOperator::BooleanAnd {
+                    let left = self.interpret(left, ctx)?.as_boolean(left.span.clone())?;
+                    if left {
+                        let right = self.interpret(right, ctx)?.as_boolean(right.span.clone())?;
+                        return Ok(Object::Boolean(left && right));
+                    } else {
+                        return Ok(Object::Boolean(false));
+                    }
+                }
+                if *op == BinaryOperator::BooleanOr {
+                    let left = self.interpret(left, ctx)?.as_boolean(left.span.clone())?;
+                    if left {
+                        return Ok(Object::Boolean(true));
+                    } else {
+                        let right = self.interpret(right, ctx)?.as_boolean(right.span.clone())?;
+                        return Ok(Object::Boolean(left || right));
+                    }
+                }
+
                 let left = self.interpret(left, ctx)?;
                 let right = self.interpret(right, ctx)?;
 
@@ -450,12 +470,8 @@ impl Interpreter {
                     BinaryOperator::GreaterThan => numeric_comparison_binop(&|l, r| l > r),
                     BinaryOperator::GreaterThanOrEquals => numeric_comparison_binop(&|l, r| l >= r),
 
-                    BinaryOperator::BooleanAnd => Ok(Object::Boolean(
-                        left.as_boolean(node.span.clone())? && right.as_boolean(node.span.clone())?,
-                    )),
-                    BinaryOperator::BooleanOr => Ok(Object::Boolean(
-                        left.as_boolean(node.span.clone())? || right.as_boolean(node.span.clone())?,
-                    )),
+                    // Handled earlier
+                    BinaryOperator::BooleanAnd | BinaryOperator::BooleanOr => unreachable!(),
                 }
             },
 

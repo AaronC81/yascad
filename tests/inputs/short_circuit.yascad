@@ -1,0 +1,6 @@
+v = [];
+
+// Would error if && weren't short-circuting
+__debug(len(v) > 0 && max(v) > 0);
+
+cube(1);
