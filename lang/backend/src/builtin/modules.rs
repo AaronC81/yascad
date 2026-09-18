@@ -39,16 +39,20 @@ fn cylinder_definition() -> ModuleDefinition {
     ModuleDefinition {
         parameters: EvaluatedParameters {
             required: vec!["h".to_owned()],
-            optional: vec![("r".to_owned(), Object::Null)],
-            optional_named_only: vec![("d".to_owned(), Object::Null)],
+            optional: vec![
+                ("r".to_owned(), Object::Null),
+                ("center".to_owned(), Object::Boolean(false)),
+            ],
+            optional_named_only: vec![("d".to_owned(), Object::Null),],
             variadic: None,
         },
         action: &|interpreter, arguments, _, span| {
             // TODO: needs to support cone forms
             let height = arguments["h"].as_number(span.clone())?;
             let radius = radius_argument(&arguments, span)?;
+            let center = arguments["center"].as_boolean();
 
-            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(height, radius, radius, interpreter.circle_segments, false), GeometryDisposition::Physical)))
+            Ok(Object::Manifold(interpreter.manifold_table.add_manifold(Manifold::cylinder(height, radius, radius, interpreter.circle_segments, center), GeometryDisposition::Physical)))
         },
     }
 }
