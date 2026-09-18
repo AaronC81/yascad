@@ -119,7 +119,7 @@ The OpenSCAD feature set on this table comes from the [cheat sheet](https://open
 | `let` | ❌ |
 | `log` | ❌ |
 | `pow` | ❌ |
-| `sqrt` | ❌ |
+| `sqrt` | ✅ |
 | `exp` | ❌ |
 | `rands` | ❌ |
 | `min` | ✅ |

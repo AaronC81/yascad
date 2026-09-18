@@ -111,6 +111,16 @@ fn min_definition() -> FunctionDefinition {
     }
 }
 
+fn sqrt_definition() -> FunctionDefinition {
+    FunctionDefinition {
+        parameters: EvaluatedParameters::required(vec!["input".to_owned()]),
+        action: &|_, arguments, span| {
+            let input = arguments["input"].as_number(span.clone())?;
+            Ok(Object::Number(input.sqrt()))
+        }
+    }
+}
+
 /// Get the implementation for a specific built-in function.
 /// 
 /// Returns [`None`] if no such operator exists.
@@ -119,6 +129,8 @@ pub fn get_builtin_function(name: &str) -> Option<FunctionDefinition> {
         "len" => Some(len_definition()),
         "max" => Some(max_definition()),
         "min" => Some(min_definition()),
+
+        "sqrt" => Some(sqrt_definition()),
 
         _ => None,
     }
