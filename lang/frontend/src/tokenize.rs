@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, rc::Rc};
+use std::{error::Error, fmt::Display, iter::Peekable, rc::Rc};
 
 use miette::Diagnostic;
 
@@ -172,22 +172,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
     'outer: while let Some((start_index, char)) = chars.next() {
         match char {
             _ if char.is_ascii_digit() => {
-                let mut buffer = char.to_string();
-                let mut had_decimal_point = false;
-
-                while let Some((_, char)) = chars.peek() {
-                    if char.is_ascii_digit() {
-                        let (_, char) = chars.next().unwrap();
-                        buffer.push(char)
-                    } else if !had_decimal_point && *char == '.' {
-                        chars.next().unwrap();
-                        had_decimal_point = true;
-                        buffer.push('.');
-                    } else {
-                        break;
-                    }
-                }
-
+                let buffer = parse_number(&mut chars, char);
                 let length = buffer.len();
                 tokens.push(Token::new(TokenKind::Number(buffer), source.span(start_index, length)));
             }
@@ -318,6 +303,10 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                             source.span(start_index, 1),
                         ))
                     }
+                } else if chars.peek().is_some_and(|(_, char)| char.is_digit(10)) {
+                    let buffer = parse_number(&mut chars, '.');
+                    let length = buffer.len();
+                    tokens.push(Token::new(TokenKind::Number(buffer), source.span(start_index, length)));
                 } else {
                     tokens.push(Token::new(TokenKind::Dot, source.span(start_index, 1)))
                 }
@@ -399,6 +388,26 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
     }
 
     (tokens, errors)
+}
+
+fn parse_number<I: Iterator<Item = (usize, char)>>(chars: &mut Peekable<I>, start_char: char) -> String {
+    let mut buffer = start_char.to_string();
+    let mut had_decimal_point = false;
+
+    while let Some((_, char)) = chars.peek() {
+        if char.is_ascii_digit() {
+            let (_, char) = chars.next().unwrap();
+            buffer.push(char)
+        } else if !had_decimal_point && *char == '.' {
+            chars.next().unwrap();
+            had_decimal_point = true;
+            buffer.push('.');
+        } else {
+            break;
+        }
+    }
+
+    buffer
 }
 
 fn lookup_keyword(name: &str) -> Option<TokenKind> {
