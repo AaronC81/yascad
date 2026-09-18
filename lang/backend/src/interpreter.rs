@@ -118,7 +118,9 @@ impl Interpreter {
 
     pub fn interpret_top_level(&mut self, nodes: &[Node]) -> Result<(), RuntimeError> {
         let ctx = ExecutionContext::new();
-        self.interpret_body(nodes, &ctx)?;
+        for node in nodes {
+            self.interpret(node, &ctx)?;
+        }
         Ok(())
     }
 
@@ -624,24 +626,8 @@ impl Interpreter {
     }
 
     /// Execute a list of nodes.
-    /// 
-    /// This does some hoisting, so everything that needs to call many nodes as a body should use
-    /// this, rather than calling them in a loop by itself.
     fn interpret_body(&mut self, nodes: &[Node], ctx: &ExecutionContext) -> Result<Vec<Object>, RuntimeError> {
-        fn is_hoisted(node: &Node) -> bool {
-            matches!(
-                node.kind,
-                NodeKind::ModuleDefinition { .. } | NodeKind::FunctionDefinition { .. } | NodeKind::OperatorDefinition { .. },
-            )
-        }
-
-        let (hoisted, not_hoisted): (Vec<_>, Vec<_>) = nodes.iter().partition(|n| is_hoisted(n));
-
-        for node in hoisted {
-            self.interpret(node, ctx)?;
-        }
-
-        not_hoisted.iter()
+        nodes.iter()
             .map(|node| self.interpret(node, ctx))
             .collect()
     }
