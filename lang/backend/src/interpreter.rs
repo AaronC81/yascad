@@ -137,7 +137,7 @@ impl Interpreter {
                     }
                 }
 
-                match self.get_existing_name(id, ctx, node.span.clone())? {
+                match self.get_binding_name(id, ctx, node.span.clone())? {
                     NameDefinition::Argument(obj) | NameDefinition::Binding(obj) => Ok(obj),
                     
                     def => Err(RuntimeError::new(
@@ -287,7 +287,7 @@ impl Interpreter {
                 // Built-in operators can do their own manifold table manipulation, so these are
                 // directly given the physical manifold indexes. They can do whatever they like with
                 // them.
-                match self.get_existing_name(name, ctx, node.span.clone())? {
+                match self.get_callable_name(name, ctx, node.span.clone())? {
                     NameDefinition::UserDefinedOperator(UserDefinition { parameters, body, scope }) => {
                         let arguments = self.match_arguments_to_parameters(arguments, parameters, node.span.clone())?;
 
@@ -328,7 +328,7 @@ impl Interpreter {
             NodeKind::Call { name, arguments } => {
                 let arguments = self.evaluate_arguments(arguments, &ctx)?;
 
-                match self.get_existing_name(name, ctx, node.span.clone())? {
+                match self.get_callable_name(name, ctx, node.span.clone())? {
                     NameDefinition::BuiltinModule(module) => {
                         let arguments = self.match_arguments_to_parameters(arguments, module.parameters, node.span.clone())?;
                         (module.action)(self, arguments, ctx.operator_children, node.span.clone())
@@ -709,69 +709,79 @@ impl Interpreter {
             .collect()
     }
 
-    /// Look up a name.
-    fn get_name(&self, name: &str, ctx: &ExecutionContext) -> Option<NameDefinition> {
+    /// Look up a name for a binding or argument.
+    fn get_binding_name(&self, name: &str, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<NameDefinition, RuntimeError> {
         if let Some(object) = ctx.lexical_scope.borrow().get_binding(name) {
-            return Some(NameDefinition::Binding(object))
+            return Ok(NameDefinition::Binding(object))
         }
 
         if let Some(object) = ctx.arguments.get(name) {
-            return Some(NameDefinition::Argument(object.clone()));
+            return Ok(NameDefinition::Argument(object.clone()));
         }
 
+        Err(RuntimeError::new(
+            RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
+            span,
+        ))
+    }
+
+    /// Look up a name for something callable (module, operator, or function).
+    fn get_callable_name(&self, name: &str, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<NameDefinition, RuntimeError> {
         if let Some(module) = builtin::get_builtin_module(name) {
-            return Some(NameDefinition::BuiltinModule(module))
+            return Ok(NameDefinition::BuiltinModule(module))
         }
 
         if let Some(def) = ctx.lexical_scope.borrow().get_module(name) {
-            return Some(NameDefinition::UserDefinedModule(def))
+            return Ok(NameDefinition::UserDefinedModule(def))
         }
 
         if let Some(operator) = builtin::get_builtin_operator(name) {
-            return Some(NameDefinition::BuiltinOperator(operator))
+            return Ok(NameDefinition::BuiltinOperator(operator))
         }
 
         if let Some(def) = ctx.lexical_scope.borrow().get_operator(name) {
-            return Some(NameDefinition::UserDefinedOperator(def))
+            return Ok(NameDefinition::UserDefinedOperator(def))
         }
 
         if let Some(function) = builtin::get_builtin_function(name) {
-            return Some(NameDefinition::BuiltinFunction(function))
+            return Ok(NameDefinition::BuiltinFunction(function))
         }
 
         if let Some(def) = ctx.lexical_scope.borrow().get_function(name) {
-            return Some(NameDefinition::UserDefinedFunction(def))
+            return Ok(NameDefinition::UserDefinedFunction(def))
         }
 
-        None
-    }
-
-    /// Like [`Self::get_name`] but returns a [`RuntimeErrorKind::UndefinedIdentifier`] if the name
-    /// is not defined.
-    fn get_existing_name(&self, name: &str, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<NameDefinition, RuntimeError> {
-        self.get_name(name, ctx).ok_or_else(||
-            RuntimeError::new(RuntimeErrorKind::UndefinedIdentifier(name.to_owned()), span))
+        Err(RuntimeError::new(
+            RuntimeErrorKind::UndefinedIdentifier(name.to_owned()),
+            span,
+        ))
     }
 
     /// Define a new name.
     /// 
     /// Returns an error if the name is already defined.
     fn add_name(&self, name: &str, def: NameDefinition, ctx: &ExecutionContext, span: InputSourceSpan) -> Result<(), RuntimeError> {
-        if self.get_name(name, ctx).is_some() {
-            return Err(RuntimeError::new(RuntimeErrorKind::DuplicateName(name.to_owned()), span))
-        }
+        let dupe_error = Err(RuntimeError::new(
+            RuntimeErrorKind::DuplicateName(name.to_owned()),
+            span.clone(),
+        ));
 
         match def {
             NameDefinition::Binding(object) => {
+                if self.get_binding_name(name, ctx, span.clone()).is_ok() { return dupe_error }
                 ctx.lexical_scope.borrow_mut().add_binding(name.to_owned(), object);
             }
+
             NameDefinition::UserDefinedOperator(def) => {
+                if self.get_callable_name(name, ctx, span.clone()).is_ok() { return dupe_error }
                 ctx.lexical_scope.borrow_mut().add_operator(name.to_owned(), def);
             }
             NameDefinition::UserDefinedModule(def) => {
+                if self.get_callable_name(name, ctx, span.clone()).is_ok() { return dupe_error }
                 ctx.lexical_scope.borrow_mut().add_module(name.to_owned(), def);
             }
             NameDefinition::UserDefinedFunction(def) => {
+                if self.get_callable_name(name, ctx, span.clone()).is_ok() { return dupe_error }
                 ctx.lexical_scope.borrow_mut().add_function(name.to_owned(), def);
             }
 
