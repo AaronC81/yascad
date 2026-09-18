@@ -1,0 +1,14 @@
+hull() {
+    circle(1);
+
+    translate([2, 2])
+    circle(1);
+}
+
+translate([0, 0, 3])
+hull() {
+    sphere(1);
+
+    translate([2, 2, 2])
+    sphere(1);
+}

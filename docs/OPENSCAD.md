@@ -95,7 +95,7 @@ The OpenSCAD feature set on this table comes from the [cheat sheet](https://open
 | `multmatrix` | ❌ |
 | `color` | ❌ |
 | `offset` | ❌ |
-| `hull` | ❌ |
+| `hull` | ✅ |
 | `minkowski` | ❌ |
 
 ### Functions

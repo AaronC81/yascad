@@ -110,6 +110,26 @@ fn intersection_definition() -> OperatorDefinition {
     }
 }
 
+fn hull_definition() -> OperatorDefinition {
+    OperatorDefinition {
+        parameters: EvaluatedParameters::empty(),
+        action: &|interpreter, _, children, span| {
+            let (entry, disp) = interpreter.manifold_table.remove_many_into_union(children, span)?;
+            match entry {
+                GeometryTableEntry::Manifold(manifold) => {
+                    Ok((GeometryTableEntry::Manifold(manifold.hull()), disp))
+                },
+                GeometryTableEntry::CrossSection(cross_section) => {
+                    Ok((GeometryTableEntry::CrossSection(cross_section.hull()), disp))
+                },
+                GeometryTableEntry::EmptyGeometry => {
+                    Ok((GeometryTableEntry::EmptyGeometry, disp))
+                }
+            }
+        }
+    }
+}
+
 fn linear_extrude_definition() -> OperatorDefinition {
     OperatorDefinition {
         parameters: EvaluatedParameters::required(vec!["h".to_owned()]),
@@ -253,6 +273,7 @@ pub fn get_builtin_operator(name: &str) -> Option<OperatorDefinition> {
         "union" => Some(union_definition()),
         "difference" => Some(difference_definition()),
         "intersection" => Some(intersection_definition()),
+        "hull" => Some(hull_definition()),
         "linear_extrude" => Some(linear_extrude_definition()),
         "rotate_extrude" => Some(rotate_extrude_definition()),
         "rotate" => Some(rotate_definition()),
