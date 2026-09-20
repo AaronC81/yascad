@@ -230,7 +230,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                 }
             }
 
-            '"' => {
+            delimiter_char @ ('"' | '`') => {
                 // Keep taking characters until we find the closing quote
                 let mut buffer = String::new();
 
@@ -244,7 +244,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                     };
                     
                     match char {
-                        '"' => break index,
+                        c if c == delimiter_char => break index,
                         '\\' => {
                             let Some((_, escaped_char)) = chars.next() else {
                                 errors.push(TokenizeError::new(
@@ -255,7 +255,7 @@ pub fn tokenize(source: Rc<InputSource>) -> (Vec<Token>, Vec<TokenizeError>) {
                             };
 
                             match escaped_char {
-                                '"' => buffer.push('"'),
+                                c if c == delimiter_char => buffer.push(delimiter_char),
                                 '\\' => buffer.push('\\'),
                                 'n' => buffer.push('\n'),
                                 _ => errors.push(TokenizeError::new(
