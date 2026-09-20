@@ -261,10 +261,22 @@ fn __debug_definition() -> ModuleDefinition {
 // TODO: all horribly temporary
 fn __svg_definition() -> ModuleDefinition {
     ModuleDefinition {
-        parameters: EvaluatedParameters::required(vec!["path".to_owned()]),
+        parameters: EvaluatedParameters {
+            required: vec!["source".to_owned()],
+            optional: vec![],
+            optional_named_only: vec![
+                ("inline".to_owned(), Object::Boolean(false)),
+            ],
+            variadic: None,
+        },
         action: &|interpreter, arguments, _, span| {
-            let path = &arguments["path"].as_string(span)?;
-            let file_contents = read_to_string(path).unwrap();
+            let file_contents;
+            if arguments["inline"].as_boolean() {
+                file_contents = arguments["source"].as_string(span)?;
+            } else {
+                let path = &arguments["source"].as_string(span)?;
+                file_contents = read_to_string(path).unwrap();
+            }
 
             let cross_section = svg_to_cross_section(&file_contents, 0.25).unwrap();
             Ok(Object::CrossSection(interpreter.manifold_table.add_cross_section(cross_section, GeometryDisposition::Physical)))
