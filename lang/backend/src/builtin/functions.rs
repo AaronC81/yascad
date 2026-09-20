@@ -22,6 +22,8 @@ fn len_definition() -> FunctionDefinition {
             match subject {
                 Object::String(str) => Ok(Object::Number(str.len() as f64)),
                 Object::Vector(vec) => Ok(Object::Number(vec.len() as f64)),
+
+                Object::Absurd => Ok(Object::Absurd),
                 
                 Object::Null
                 | Object::Number(_)

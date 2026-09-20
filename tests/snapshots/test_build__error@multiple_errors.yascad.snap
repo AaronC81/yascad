@@ -1,0 +1,7 @@
+---
+source: tests/test_build.rs
+expression: errors
+input_file: tests/bad_inputs/multiple_errors.yascad
+---
+undefined identifier "a"
+type error - cannot use binary operator with number and boolean

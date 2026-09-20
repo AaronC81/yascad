@@ -46,7 +46,7 @@ pub fn build_yascad_model_to_stl(code: String) -> Result<BuildStlOutput, String>
 
         Err(LangError::Tokenize(errors)) => Err(flatten_miette_errors(errors)),
         Err(LangError::Parser(errors)) => Err(flatten_miette_errors(errors)),
-        Err(LangError::Runtime(error)) => Err(flatten_miette_errors(vec![error])),
+        Err(LangError::Runtime(errors)) => Err(flatten_miette_errors(errors)),
     }
 }
 

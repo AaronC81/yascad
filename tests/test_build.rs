@@ -40,7 +40,7 @@ fn test_error() {
         let errors = match error {
             LangError::Tokenize(errors) => flatten_errors(errors),
             LangError::Parser(errors) => flatten_errors(errors),
-            LangError::Runtime(error) => flatten_errors(vec![error]),
+            LangError::Runtime(errors) => flatten_errors(errors),
         };
 
         assert_snapshot!(errors);

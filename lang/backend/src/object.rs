@@ -13,6 +13,9 @@ pub enum Object {
     Manifold(GeometryTableIndex),
     CrossSection(GeometryTableIndex),
     EmptyGeometry,
+
+    /// Result of something which caused a fatal error
+    Absurd,
 }
 
 impl Object {
@@ -27,6 +30,8 @@ impl Object {
             Object::Manifold(_) => "3D manifold",
             Object::CrossSection(_) => "2D cross-section",
             Object::EmptyGeometry => "empty geometry",
+
+            Object::Absurd => "(unknown)",
         }.to_owned()
     }
 
@@ -80,7 +85,9 @@ impl Object {
 
             Object::EmptyGeometry => {
                 self.get_field_of_empty_geometry(field)
-            }
+            },
+
+            Object::Absurd => Some(Object::Absurd),
         }
     }
 
@@ -154,6 +161,8 @@ impl Object {
             Object::Manifold(_) => true,
             Object::CrossSection(_) => true,
             Object::EmptyGeometry => true,
+
+            Object::Absurd => true,
         }
     }
 
@@ -268,6 +277,8 @@ impl PartialEq for Object {
             (Self::Manifold(_), Self::Manifold(_)) => false,
             (Self::CrossSection(_), Self::CrossSection(_)) => false,
             (Self::EmptyGeometry, Self::EmptyGeometry) => false,
+
+            (Self::Absurd, _) | (_, Self::Absurd) => true,
 
             // Not using `_` so we get exhaustiveness error for new variants
             (Self::Number(_), _)

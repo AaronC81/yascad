@@ -1,0 +1,3 @@
+__debug([a]);
+
+__debug(1 + true);

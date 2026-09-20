@@ -80,6 +80,8 @@ pub struct Interpreter {
     pub(crate) debug_hook: Box<dyn Fn(&Object) + 'static>,
 
     pub outputs: HashMap<String, GeometryTableEntry>,
+
+    pub errors: Vec<RuntimeError>,
 }
 
 impl Interpreter {
@@ -93,6 +95,7 @@ impl Interpreter {
             debug_hook: Box::new(|obj| println!("{obj:?}")),
 
             outputs: HashMap::new(),
+            errors: vec![],
         }
     }
 
@@ -115,12 +118,20 @@ impl Interpreter {
         result
     }
 
-    pub fn interpret_top_level(&mut self, nodes: &[Node]) -> Result<(), RuntimeError> {
+    pub fn interpret_top_level(&mut self, nodes: &[Node]) -> Result<(), Vec<RuntimeError>> {
+        self.errors.clear();
+
         let ctx = ExecutionContext::new();
         for node in nodes {
-            self.interpret(node, &ctx)?;
+            let result = self.interpret(node, &ctx);
+            self.unwrap_or_absurd(result);
         }
-        Ok(())
+
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(self.errors.clone())
+        }
     }
 
     pub fn interpret(&mut self, node: &Node, ctx: &ExecutionContext) -> Result<Object, RuntimeError> {
@@ -430,6 +441,8 @@ impl Interpreter {
                             .get(index).cloned()
                             .unwrap_or(Object::Null)
                     ),
+
+                    Object::Absurd => Ok(Object::Absurd),
 
                     Object::Null
                     | Object::Number(_)
@@ -959,6 +972,16 @@ impl Interpreter {
 
         self.outputs.insert(name.to_owned(), geometry);
         Ok(())
+    }
+
+    fn unwrap_or_absurd(&mut self, result: Result<Object, RuntimeError>) -> Object {
+        match result {
+            Ok(value) => value,
+            Err(err) => {
+                self.errors.push(err);
+                Object::Absurd
+            }
+        }
     }
 }
 

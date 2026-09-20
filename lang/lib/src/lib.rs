@@ -11,7 +11,7 @@ pub use yascad_backend::RuntimeError;
 pub enum LangError {
     Tokenize(Vec<TokenizeError>),
     Parser(Vec<ParseError>),
-    Runtime(RuntimeError),
+    Runtime(Vec<RuntimeError>),
 }
 
 #[derive(Default)]
