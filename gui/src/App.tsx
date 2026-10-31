@@ -20,6 +20,7 @@ function App() {
     : lastBuildOutput?.outputs?.[currentOutputView];
 
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
+  const [autoScale, setAutoScale] = useState(false);
 
   // If the current output stops existing, revert to main
   if (
@@ -74,6 +75,9 @@ function App() {
     if (params.get("preview") !== null) {
       setFullscreenPreview(true);
     }
+    if (params.get("autoscale") !== null) {
+      setAutoScale(true);
+    }
   }, []);
   const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
     const params = new URLSearchParams(location.search);
@@ -127,11 +131,16 @@ function App() {
         <Panel className="flex flex-col" defaultSize={50}>
           <div id="output-model" className="flex-1 min-h-0 relative">
             {/* Important: the canvas must remain mounted all the time */}
-            <RenderCanvas stl={currentStl ?? ""} />
-            <div className="absolute left-1 top-1">
+            <RenderCanvas stl={currentStl ?? ""} autoScale={autoScale} />
+            <div className="absolute left-1 top-1 flex flex-row gap-1">
               <IconButton
                 icon={fullscreenPreview ? fas.faCompress : fas.faExpand}
                 onClick={() => setFullscreenPreview(!fullscreenPreview)}
+              />
+              <IconButton
+                icon={fas.faArrowsToEye}
+                active={autoScale}
+                onClick={() => setAutoScale(!autoScale)}
               />
             </div>
           </div>

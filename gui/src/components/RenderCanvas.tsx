@@ -1,4 +1,4 @@
-import { PerspectiveCamera, OrbitControls, Grid, Line } from "@react-three/drei";
+import { PerspectiveCamera, OrbitControls, Grid, Line, Bounds } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { STLLoader } from "three/examples/jsm/Addons.js";
 import { Suspense, useMemo } from "react";
@@ -7,7 +7,7 @@ import * as THREE from "three";
 // Make Z up
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
-export default function RenderCanvas({ stl }: { stl: string | undefined }) {
+export default function RenderCanvas({ stl, autoScale }: { stl: string | undefined, autoScale?: boolean }) {
   // Three.js `STLLoader` throws an exception when an STL has no triangles.
   //
   // Guard against this with a completely rubbish heuristic, by checking for the text "facet normal"
@@ -32,21 +32,23 @@ export default function RenderCanvas({ stl }: { stl: string | undefined }) {
 
       {stl && stlHasTriangles &&
         <Suspense>
-          <STL stl={stl} />
+          <STL stl={stl} autoScale={autoScale} />
         </Suspense>
       }
     </Canvas>
   )
 }
 
-function STL({ stl }: { stl: string }) {
+function STL({ stl, autoScale }: { stl: string, autoScale?: boolean }) {
   const stlDataUri = useMemo(() => `data:text/plain;base64,${btoa(stl)}`, [stl]);
   const stlAsset = useLoader(STLLoader, stlDataUri);
 
   return (
-    <mesh geometry={stlAsset}>
-      <meshStandardMaterial color="orange" />
-    </mesh>
+    <Bounds fit clip observe={autoScale} margin={2}>
+      <mesh geometry={stlAsset}>
+        <meshStandardMaterial color="orange" />
+      </mesh>
+    </Bounds>
   )
 }
 
