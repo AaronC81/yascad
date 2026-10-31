@@ -19,6 +19,8 @@ function App() {
     ? lastBuildOutput?.main
     : lastBuildOutput?.outputs?.[currentOutputView];
 
+  const [fullscreenPreview, setFullscreenPreview] = useState(false);
+
   // If the current output stops existing, revert to main
   if (
     lastBuildOutput
@@ -71,7 +73,7 @@ function App() {
   return (
     <main className="h-screen">
       <PanelGroup autoSaveId={"mainPanelGroup"} direction="horizontal" className="w-screen h-screen">
-        <Panel className="flex flex-col" defaultSize={50}>
+        <Panel className="flex flex-col" defaultSize={50} hidden={fullscreenPreview}>
           <ModelEditor
             className="flex-1"
             onChange={editorChange}
@@ -104,9 +106,15 @@ function App() {
         <PanelResizeHandle />
 
         <Panel className="flex flex-col" defaultSize={50}>
-          <div id="output-model" className="flex-1 min-h-0">
+          <div id="output-model" className="flex-1 min-h-0 relative">
             {/* Important: the canvas must remain mounted all the time */}
             <RenderCanvas stl={currentStl ?? ""} />
+            <div className="absolute left-1 top-1">
+              <IconButton
+                icon={fullscreenPreview ? fas.faCompress : fas.faExpand}
+                onClick={() => setFullscreenPreview(!fullscreenPreview)}
+              />
+            </div>
           </div>
           
           <div id="output-messages" className={"font-mono text-left whitespace-break-spaces overflow-y-scroll " + (stlError ? "flex-1" : "hidden")}>

@@ -2,7 +2,7 @@ import { IconDefinition } from "@fortawesome/free-solid-svg-icons"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 
 export default function IconButton({ label, icon, onClick, disabled }: {
-  label: string,
+  label?: string,
   icon: IconDefinition,
   onClick: () => void,
   disabled?: boolean,
@@ -14,9 +14,11 @@ export default function IconButton({ label, icon, onClick, disabled }: {
       disabled={disabled}
     >
       <FontAwesomeIcon icon={icon} className="text-3xl" />
-      <span className="text-sm">
-        {label}
-      </span>
+      {label &&
+        <span className="text-sm">
+          {label}
+        </span>
+      }
     </button>
   )
 }
