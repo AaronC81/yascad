@@ -8,13 +8,15 @@ import IconButton from "./IconButton";
 import { fas } from "@fortawesome/free-solid-svg-icons";
 import logo from "../img/logo.png";
 
-export default function ModelEditor({ onChange, onReset, ...props }: {
+export default function ModelEditor({ onChange, onReset, onMount, ...props }: {
   onChange: (editor: editor.IStandaloneCodeEditor) => any,
   onReset: () => any,
+  onMount: (editor: editor.IStandaloneCodeEditor) => any,
 } & Omit<ComponentProps<"div">, "onChange">) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   function editorDidMount(editor: editor.IStandaloneCodeEditor, _: Monaco) {
     editorRef.current = editor;
+    onMount(editor);
   }
 
   function editorWillMount(monaco: Monaco) {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import RenderCanvas from "./components/RenderCanvas";
 import useKeyboardShortcut from "./hooks/useKeyboardShortcut";
 import { editor } from "monaco-editor";
@@ -68,6 +68,24 @@ function App() {
     }
   }, [lastBuildOutput]);
 
+  // Loading from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("preview") !== null) {
+      setFullscreenPreview(true);
+    }
+  }, []);
+  const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
+    const params = new URLSearchParams(location.search);
+
+    const code = params.get("code");
+    if (code) {
+      editor.setValue(decodeURIComponent(code));
+      editorChange(editor); // to set the ref
+      renderPreview();
+    }
+  }, []);
+
   useKeyboardShortcut({ key: "F5" }, renderPreview, [renderPreview]);
 
   return (
@@ -78,6 +96,7 @@ function App() {
             className="flex-1"
             onChange={editorChange}
             onReset={resetModelEditorState}
+            onMount={handleEditorMount}
           />
           <div className="flex flex-row p-[5px] gap-[5px] items-center">
             <IconButton onClick={renderPreview} label="Render (F5)" icon={fas.faCube} />
