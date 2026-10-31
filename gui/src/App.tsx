@@ -90,6 +90,28 @@ function App() {
     }
   }, []);
 
+  const buildUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("code", encodeURIComponent(editorRef.current!.getValue()));
+
+    if (fullscreenPreview) {
+      params.set("preview", "");
+    }
+    if (autoScale) {
+      params.set("autoscale", "");
+    }
+
+    return `${location.origin}?${params}`;
+  }, [fullscreenPreview, autoScale]);
+
+  const [justCopiedUrl, setJustCopiedUrl] = useState(false);
+  const handleCopyUrl = useCallback(() => {
+    navigator.clipboard.writeText(buildUrl());
+
+    setJustCopiedUrl(true);
+    setTimeout(() => setJustCopiedUrl(false), 2000);
+  }, [buildUrl]);
+
   useKeyboardShortcut({ key: "F5" }, renderPreview, [renderPreview]);
 
   return (
@@ -141,6 +163,11 @@ function App() {
                 icon={fas.faArrowsToEye}
                 active={autoScale}
                 onClick={() => setAutoScale(!autoScale)}
+              />
+              <IconButton
+                icon={justCopiedUrl ? fas.faCheck : fas.faShareFromSquare}
+                active={justCopiedUrl}
+                onClick={handleCopyUrl}
               />
             </div>
           </div>
