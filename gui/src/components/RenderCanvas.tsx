@@ -26,6 +26,9 @@ export default function RenderCanvas({ stl, autoScale }: { stl: string | undefin
       <Grid
         sectionColor="#999"
         infiniteGrid={true}
+        followCamera={true}
+        fadeDistance={300}
+        fadeStrength={8}
         rotation={[Math.PI / 2, 0, 0]}
         side={2 /* Double-sided */} />
       <Axes />
