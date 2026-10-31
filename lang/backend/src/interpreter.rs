@@ -90,7 +90,7 @@ impl Interpreter {
             manifold_table: GeometryTable::new(),
 
             // TODO: add $fn setter support
-            circle_segments: 20,
+            circle_segments: 40,
 
             debug_hook: Box::new(|obj| println!("{obj:?}")),
 
